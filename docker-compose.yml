@@ -20,6 +20,7 @@ services:
       - CHOKIDAR_USEPOLLING=true
     depends_on:
       - server
+    command: sh -c "npm install && npm run dev -- --host"
 
   # 拡張機能開発環境
   extension:
