@@ -1,4 +1,14 @@
 services:
+  # WebSocket中継サーバー
+  server:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - ./patipuro-server:/app
+    command: sh -c "npm install && node server.js"
+    ports:
+      - "8080:8080"
+
   # パチンコ画面 (React)
   web:
     build: ./patipuro-web
@@ -8,6 +18,8 @@ services:
       - ./patipuro-web:/app
     environment:
       - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - server
 
   # 拡張機能開発環境
   extension:
