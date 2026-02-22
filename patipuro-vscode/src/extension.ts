@@ -1,15 +1,14 @@
 import * as vscode from 'vscode';
 
-let panel: vscode.WebviewPanel | null = null;
 let isActive = false;
 let textChangeDisposable: vscode.Disposable | null = null;
 let shellExecDisposable: vscode.Disposable | null = null;
 let statusBarItem: vscode.StatusBarItem;
 
-// patipuro-vscode/src/extension.ts の一部を修正
+// 登録済みのWebviewViewを全て追跡する
+const activeViews = new Set<vscode.WebviewView>();
 
 function getWebviewContent(): string {
-    // Viteの開発サーバーURLを指定します
     const devServerUrl = "http://localhost:5173";
 
     return `<!DOCTYPE html>
@@ -40,23 +39,26 @@ function getWebviewContent(): string {
 </html>`;
 }
 
-function createPanel(context: vscode.ExtensionContext) {
-    panel = vscode.window.createWebviewPanel(
-        'patipuro',
-        'PatiPro',
-        vscode.ViewColumn.Beside,
-        {
+// 全アクティブViewにメッセージを送る
+function postMessageToAll(message: object) {
+    activeViews.forEach(view => {
+        view.webview.postMessage(message);
+    });
+}
+
+class PatiProViewProvider implements vscode.WebviewViewProvider {
+    resolveWebviewView(webviewView: vscode.WebviewView) {
+        webviewView.webview.options = {
             enableScripts: true,
-            retainContextWhenHidden: true
-        }
-    );
+        };
+        webviewView.webview.html = getWebviewContent();
 
-    panel.webview.html = getWebviewContent();
+        activeViews.add(webviewView);
 
-    panel.onDidDispose(() => {
-        panel = null;
-        stopPatiPro();
-    }, null, context.subscriptions);
+        webviewView.onDidDispose(() => {
+            activeViews.delete(webviewView);
+        });
+    }
 }
 
 function stopPatiPro() {
@@ -107,7 +109,7 @@ async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand') {
         disposable.dispose();
 
         if (e.exitCode === 0) {
-            panel?.webview.postMessage({ type: 'burst', count: 15 });
+            postMessageToAll({ type: 'burst', count: 15 });
             vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
         } else {
             vscode.window.showWarningMessage(`❌ ${label}失敗... 不発`);
@@ -120,22 +122,22 @@ export function activate(context: vscode.ExtensionContext) {
     updateStatusBar();
     statusBarItem.show();
 
+    // WebviewViewProviderをサイドバーとパネル両方に登録
+    const provider = new PatiProViewProvider();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('patipuro.sidebarView', provider),
+        vscode.window.registerWebviewViewProvider('patipuro.panelView', provider),
+    );
+
     // 開始コマンド
     const startCmd = vscode.commands.registerCommand('patipuro.start', () => {
         isActive = true;
-
-        if (!panel) {
-            createPanel(context);
-        } else {
-            panel.reveal(vscode.ViewColumn.Beside);
-        }
 
         // 文字が追加されたときだけ発射（Backspace・削除は除外）
         textChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
             const hasInsertion = event.contentChanges.some(c => c.text.length > 0);
             if (hasInsertion) {
-                // 直接 Webview へ postMessage を送る
-                panel?.webview.postMessage({ type: 'keypress' });
+                postMessageToAll({ type: 'keypress' });
             }
         });
 
@@ -152,10 +154,10 @@ export function activate(context: vscode.ExtensionContext) {
             const isLint  = lintPatterns.some(p => cmd.includes(p));
 
             if (isBuild) {
-                panel?.webview.postMessage({ type: 'burst', count: 15 });
+                postMessageToAll({ type: 'burst', count: 15 });
                 vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
             } else if (isLint) {
-                panel?.webview.postMessage({ type: 'burst', count: 10 });
+                postMessageToAll({ type: 'burst', count: 10 });
                 vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
             }
         });
@@ -167,7 +169,6 @@ export function activate(context: vscode.ExtensionContext) {
     // 停止コマンド
     const stopCmd = vscode.commands.registerCommand('patipuro.stop', () => {
         stopPatiPro();
-        panel?.dispose();
         vscode.window.showInformationMessage('PatiPro 停止');
     });
 
@@ -186,5 +187,4 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     stopPatiPro();
-    panel?.dispose();
 }
