@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 let panel: vscode.WebviewPanel | null = null;
 let isActive = false;
 let textChangeDisposable: vscode.Disposable | null = null;
+let shellExecDisposable: vscode.Disposable | null = null;
 let statusBarItem: vscode.StatusBarItem;
 
 function getWebviewContent(): string {
@@ -92,8 +93,14 @@ function getWebviewContent(): string {
 
         // 拡張機能からのメッセージを受信
         window.addEventListener('message', (event) => {
-            if (event.data.type === 'keypress') {
+            const { type, count } = event.data;
+            if (type === 'keypress') {
                 shootBall();
+            } else if (type === 'burst') {
+                const n = count || 10;
+                for (let i = 0; i < n; i++) {
+                    setTimeout(() => shootBall(), i * 60);
+                }
             }
         });
     </script>
@@ -105,16 +112,15 @@ function createPanel(context: vscode.ExtensionContext) {
     panel = vscode.window.createWebviewPanel(
         'patipuro',
         'PatiPro',
-        vscode.ViewColumn.Beside,       // エディタの横に並べて表示
+        vscode.ViewColumn.Beside,
         {
             enableScripts: true,
-            retainContextWhenHidden: true   // パネルを隠しても物理演算の状態を保持
+            retainContextWhenHidden: true
         }
     );
 
     panel.webview.html = getWebviewContent();
 
-    // パネルを閉じたら停止
     panel.onDidDispose(() => {
         panel = null;
         stopPatiPro();
@@ -126,6 +132,10 @@ function stopPatiPro() {
     if (textChangeDisposable) {
         textChangeDisposable.dispose();
         textChangeDisposable = null;
+    }
+    if (shellExecDisposable) {
+        shellExecDisposable.dispose();
+        shellExecDisposable = null;
     }
     updateStatusBar();
 }
@@ -142,6 +152,37 @@ function updateStatusBar() {
     }
 }
 
+/**
+ * シェルコマンドをVSCodeタスクとして実行し、終了コードに応じて弾を発射する
+ */
+async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand') {
+    const config = vscode.workspace.getConfiguration('patipuro');
+    const cmd = config.get<string>(commandKey) ?? (commandKey === 'buildCommand' ? 'npm run build' : 'npm run lint');
+    const label = commandKey === 'buildCommand' ? 'ビルド' : 'Lint';
+
+    const task = new vscode.Task(
+        { type: 'patipuro', command: commandKey },
+        vscode.TaskScope.Workspace,
+        label,
+        'PatiPro',
+        new vscode.ShellExecution(cmd)
+    );
+
+    const execution = await vscode.tasks.executeTask(task);
+
+    const disposable = vscode.tasks.onDidEndTaskProcess(e => {
+        if (e.execution !== execution) { return; }
+        disposable.dispose();
+
+        if (e.exitCode === 0) {
+            panel?.webview.postMessage({ type: 'burst', count: 15 });
+            vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
+        } else {
+            vscode.window.showWarningMessage(`❌ ${label}失敗... 不発`);
+        }
+    });
+}
+
 export function activate(context: vscode.ExtensionContext) {
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     updateStatusBar();
@@ -151,16 +192,39 @@ export function activate(context: vscode.ExtensionContext) {
     const startCmd = vscode.commands.registerCommand('patipuro.start', () => {
         isActive = true;
 
-        // パネルが既にあれば前面に出すだけ、なければ新規作成
         if (!panel) {
             createPanel(context);
         } else {
             panel.reveal(vscode.ViewColumn.Beside);
         }
 
-        // テキスト変更 → postMessage → WebView で shootBall()
-        textChangeDisposable = vscode.workspace.onDidChangeTextDocument(() => {
-            panel?.webview.postMessage({ type: 'keypress' });
+        // 文字が追加されたときだけ発射（Backspace・削除は除外）
+        textChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
+            const hasInsertion = event.contentChanges.some(c => c.text.length > 0);
+            if (hasInsertion) {
+                panel?.webview.postMessage({ type: 'keypress' });
+            }
+        });
+
+        // ターミナルでのビルド・Lintコマンドを検知して発射
+        const config = vscode.workspace.getConfiguration('patipuro');
+        const buildPatterns = config.get<string[]>('buildPatterns') ?? ['run build', 'tsc', 'webpack', 'vite build'];
+        const lintPatterns  = config.get<string[]>('lintPatterns')  ?? ['run lint', 'eslint', 'biome check', 'biome lint'];
+
+        shellExecDisposable = vscode.window.onDidEndTerminalShellExecution(e => {
+            if (e.exitCode === undefined || e.exitCode !== 0) { return; }
+
+            const cmd = e.execution.commandLine.value;
+            const isBuild = buildPatterns.some(p => cmd.includes(p));
+            const isLint  = lintPatterns.some(p => cmd.includes(p));
+
+            if (isBuild) {
+                panel?.webview.postMessage({ type: 'burst', count: 15 });
+                vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
+            } else if (isLint) {
+                panel?.webview.postMessage({ type: 'burst', count: 10 });
+                vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
+            }
         });
 
         updateStatusBar();
@@ -174,7 +238,17 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('PatiPro 停止');
     });
 
-    context.subscriptions.push(startCmd, stopCmd, statusBarItem);
+    // ビルド実行コマンド
+    const runBuildCmd = vscode.commands.registerCommand('patipuro.runBuild', () => {
+        runPatiTask('buildCommand');
+    });
+
+    // Lint実行コマンド
+    const runLintCmd = vscode.commands.registerCommand('patipuro.runLint', () => {
+        runPatiTask('lintCommand');
+    });
+
+    context.subscriptions.push(startCmd, stopCmd, runBuildCmd, runLintCmd, statusBarItem);
 }
 
 export function deactivate() {
