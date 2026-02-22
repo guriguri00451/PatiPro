@@ -1,25 +1,40 @@
 import React, { useEffect, useRef } from 'react';
 import Matter from 'matter-js';
+import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 
-// 物理演算の設定値
-const BOARD_WIDTH = 400;
-const BOARD_HEIGHT = 600;
+const { BOARD_WIDTH, BOARD_HEIGHT, PEG_PROXIMITY_THRESHOLD, PEG_LEAVE_THRESHOLD, LAUNCH_POWER_MIN, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
 
 const Pachinko: React.FC = () => {
     // TypeScriptの型指定: HTMLDivElement | null
     const sceneRef = useRef<HTMLDivElement>(null);
-    // Matter.Engineの型
-    const engineRef = useRef<Matter.Engine>(Matter.Engine.create());
     // shootBall を useRef で安定参照（WebSocketコールバックから呼ぶため）
     const shootBallRef = useRef<() => void>(() => {});
+    // 物理エンジン（物理演算担当のクラス）
+    const physicsEngineRef = useRef<PachinkoPhysicsEngine>(new PachinkoPhysicsEngine());
+    // デバッグモード
+    const [debugMode, setDebugMode] = React.useState(false);
+    // デバッグ描画用のCanvas
+    const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    // 連続発射用
+    const isShootingRef = useRef(false);
+    const shootIntervalRef = useRef<number | null>(null);
+    const [launchPower, setLaunchPower] = React.useState<number>(LAUNCH_POWER_MAX);
+    const launchPowerRef = useRef<number>(LAUNCH_POWER_MAX);
+    // デバッグ情報表示用
+    const [fps, setFps] = React.useState(0);
+    const [ballCount, setBallCount] = React.useState(0);
+    const [activePegCount, setActivePegCount] = React.useState(0);
+    const [totalPegCount, setTotalPegCount] = React.useState(0);
 
     useEffect(() => {
         if (!sceneRef.current) return;
 
-        const { Engine, Render, Runner, Bodies, Composite, World } = Matter;
-        const engine = engineRef.current;
+        const { Render, Runner, Bodies, World } = Matter;
+        const physicsEngine = physicsEngineRef.current;
+        const engine = physicsEngine.getEngine();
+        const pegManager = physicsEngine.getPegManager();
 
         // 1. レンダラーの設定
         const render = Render.create({
@@ -37,29 +52,84 @@ const Pachinko: React.FC = () => {
         const ground = Bodies.rectangle(BOARD_WIDTH / 2, 610, 410, 60, { isStatic: true });
         const leftWall = Bodies.rectangle(-10, 300, 20, 600, { isStatic: true });
         const rightWall = Bodies.rectangle(410, 300, 20, 600, { isStatic: true });
+        
+        // 釘の作成（リアルなパチンコ配置）
+        const pegs = PegLayoutGenerator.generateRealisticPegs(Bodies);
+        
+        // 物理エンジンに釘を登録
+        pegs.forEach(peg => {
+            const x = peg.position.x;
+            const y = peg.position.y;
+            pegManager.addPeg(peg, x, y);
+        });
 
-        const pegs: Matter.Body[] = [];
-        for (let i = 0; i < 8; i++) {
-            for (let j = 0; j < 6; j++) {
-                const x = 50 + j * 60 + (i % 2 === 0 ? 30 : 0);
-                const y = 100 + i * 50;
-                pegs.push(Bodies.circle(x, y, 4, {
-                    isStatic: true,
-                    render: { fillStyle: '#ffcc00' }
-                }));
-            }
-        }
-
-        World.add(engine.world, [ground, leftWall, rightWall, ...pegs]);
+        World.add(engine.world, [
+            ground, leftWall, rightWall, 
+            ...pegs
+        ]);
 
         // 3. 物理エンジンの実行
         Render.run(render);
         const runner = Runner.create();
         Runner.run(runner, engine);
 
-        // クリックイベントの登録
-        const handleMouseDown = () => shootBallRef.current();
+        // 衝突イベントの検知
+        Matter.Events.on(engine, 'collisionStart', (event) => {
+            event.pairs.forEach((pair) => {
+                physicsEngine.handleCollision(pair);
+            });
+        });
+
+        // 毎フレーム実行される更新ロジック
+        Matter.Events.on(engine, 'beforeUpdate', () => {
+            // 物理エンジンの更新
+            physicsEngine.update();
+            
+            // デバッグ情報の更新
+            const debugInfo = physicsEngine.getDebugInfo();
+            setFps(debugInfo.fps);
+            setBallCount(debugInfo.ballCount);
+            setActivePegCount(debugInfo.activePegCount);
+            setTotalPegCount(debugInfo.totalPegCount);
+        });
+
+        // クリックイベントの登録（長押しで連続発射）
+        const handleMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+
+            // UI操作中は発射しない
+            if (target.closest('.debug-panel') || target.closest('.launch-power-control')) return;
+
+            // 盤面上のクリックのみ発射
+            if (!sceneRef.current?.contains(target)) return;
+
+            startShooting();
+        };
+        const handleMouseUp = () => stopShooting();
         window.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mouseup', handleMouseUp);
+        
+        // デバッグモードのキーボードイベント
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'd' || e.key === 'D') {
+                setDebugMode(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        
+        // デバッグ描画用のCanvas作成
+        if (sceneRef.current) {
+            const canvas = document.createElement('canvas');
+            canvas.width = BOARD_WIDTH;
+            canvas.height = BOARD_HEIGHT;
+            canvas.style.position = 'absolute';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            canvas.style.pointerEvents = 'none';
+            canvas.style.zIndex = '1000';
+            sceneRef.current.appendChild(canvas);
+            debugCanvasRef.current = canvas;
+        }
 
         // 4. WebSocketクライアント（サーバーなしでもクラッシュしない）
         let ws: WebSocket | null = null;
@@ -96,48 +166,281 @@ const Pachinko: React.FC = () => {
         // クリーンアップ
         return () => {
             window.removeEventListener('mousedown', handleMouseDown);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('keydown', handleKeyDown);
+            stopShooting();
+            Matter.Events.off(engine, 'collisionStart');
+            Matter.Events.off(engine, 'beforeUpdate');
             ws?.close();
             Render.stop(render);
             Runner.stop(runner);
-            Engine.clear(engine);
+            physicsEngine.clear();
             if (render.canvas) {
                 render.canvas.remove();
+            }
+            if (debugCanvasRef.current) {
+                debugCanvasRef.current.remove();
             }
         };
     }, []);
 
-    // 玉を発射する関数
-    const shootBall = (): void => {
-        const { Bodies, Body, Composite } = Matter;
-        const ball = Bodies.circle(380, 50, 8, {
-            restitution: 0.5,
-            friction: 0.005,
-            render: {
-                // 今後Sprite画像を入れる場合はここを編集
-                fillStyle: '#00ffcc'
-            }
-        });
+// 玉を発射する関数（物理エンジンを使用）
+const shootBall = (): void => {
+    physicsEngineRef.current.shootBall(launchPowerRef.current);
+};
 
-        Body.setVelocity(ball, { x: -5, y: 0 });
-        Composite.add(engineRef.current.world, ball);
-    };
+useEffect(() => {
+    launchPowerRef.current = launchPower;
+}, [launchPower]);
+
+// 連続発射開始
+const startShooting = (): void => {
+    if (isShootingRef.current) return;
+    isShootingRef.current = true;
+    
+    shootBall(); // 即座に1発
+    shootIntervalRef.current = window.setInterval(() => {
+        shootBall();
+    }, 150); // 150msごとに発射
+};
+
+// 連続発射停止
+const stopShooting = (): void => {
+    isShootingRef.current = false;
+    if (shootIntervalRef.current) {
+        clearInterval(shootIntervalRef.current);
+        shootIntervalRef.current = null;
+    }
+};
+
+// デバッグモード時の描画
+useEffect(() => {
+    if (!debugCanvasRef.current) return;
+
+    if (!debugMode) {
+        const clearCtx = debugCanvasRef.current.getContext('2d');
+        if (clearCtx) {
+            clearCtx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        }
+        return;
+    }
+    
+    const canvas = debugCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const physicsEngine = physicsEngineRef.current;
+    const pegManager = physicsEngine.getPegManager();
+    
+    const drawDebug = () => {
+        ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        
+        // 半透明の背景で視認性向上
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
+        
+        // 釘の状態を描画
+        pegManager.getAllPegStates().forEach((pegState) => {
+                const { body, health, isActive, totalImpacts } = pegState;
+                const x = body.position.x;
+                const y = body.position.y;
+                
+                // 近接/離脱範囲の円（アクティブ時のみ表示）
+                if (isActive) {
+                    ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.arc(x, y, PEG_LEAVE_THRESHOLD, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = 'rgba(0, 255, 100, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(x, y, PEG_PROXIMITY_THRESHOLD, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // アクティブマーカー（パルス効果）
+                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.5;
+                    ctx.fillStyle = `rgba(0, 255, 100, ${pulse})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // 健康度バー（見やすく改善）
+                const barWidth = 30;
+                const barHeight = 4;
+                const barX = x - barWidth / 2;
+                const barY = y + 12;
+                
+                // バー背景
+                ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
+                ctx.fillRect(barX, barY, barWidth, barHeight);
+                
+                // 健康度（グラデーション）
+                const healthColor = health > 0.5 
+                    ? `rgba(${255 * (1 - health) * 2}, 255, 0, 0.9)` 
+                    : `rgba(255, ${255 * health * 2}, 0, 0.9)`;
+                ctx.fillStyle = healthColor;
+                ctx.fillRect(barX, barY, barWidth * health, barHeight);
+                
+                // 枠線
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(barX, barY, barWidth, barHeight);
+                
+                // 健康度テキスト（影付き）
+                const healthText = `${(health * 100).toFixed(0)}`;
+                ctx.font = 'bold 10px monospace';
+                // 影
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.fillText(healthText, x - 8, y - 8);
+                // 本体
+                ctx.fillStyle = isActive ? '#00ff00' : '#ffffff';
+                ctx.fillText(healthText, x - 9, y - 9);
+                
+                // 衝突回数（劣化が進んでいる釘のみ表示）
+                if (totalImpacts > 10) {
+                    ctx.font = '8px monospace';
+                    ctx.fillStyle = 'rgba(255, 100, 100, 0.7)';
+                    ctx.fillText(`×${totalImpacts}`, x + 10, y + 20);
+                }
+            });
+            
+            // 玉の周りのマーカー（より目立つように）
+            physicsEngine.getBalls().forEach((ball) => {
+                // 外側の円（パルス）
+                const pulse = Math.sin(Date.now() / 150) * 3 + 15;
+                ctx.strokeStyle = `rgba(0, 255, 255, ${0.4 - pulse / 60})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ball.position.x, ball.position.y, pulse, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 内側の円
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(ball.position.x, ball.position.y, 10, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 速度ベクトル
+                const velocityScale = 3;
+                ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(ball.position.x, ball.position.y);
+                ctx.lineTo(
+                    ball.position.x + ball.velocity.x * velocityScale,
+                    ball.position.y + ball.velocity.y * velocityScale
+                );
+                ctx.stroke();
+            });
+        };
+        
+        const interval = setInterval(drawDebug, 1000 / 30); // 30FPSで描画
+        
+        return () => clearInterval(interval);
+    }, [debugMode]);
 
     // shootBall の参照を常に最新に保つ
     shootBallRef.current = shootBall;
 
     return (
-        <div style={{ position: 'relative' }}>
-            <div style={{ 
-                color: 'white', 
-                position: 'absolute', 
-                top: -30, 
-                width: '100%', 
-                textAlign: 'center',
-                fontFamily: 'sans-serif'
-            }}>
-                TS Mode: Typing will trigger balls
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+            <div style={{ position: 'relative' }}>
+                <div style={{ 
+                    color: 'white', 
+                    position: 'absolute', 
+                    top: -30, 
+                    width: '100%', 
+                    textAlign: 'center',
+                    fontFamily: 'sans-serif'
+                }}>
+                    クリック長押しで連続発射 {debugMode && <span style={{ color: '#00ff00' }}>| DEBUG: ON</span>}
+                </div>
+                
+                {/* 発射力調整 */}
+                <div className="launch-power-control" style={{
+                    position: 'absolute',
+                    bottom: 10,
+                    left: 10,
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    color: 'white',
+                    padding: '8px 12px',
+                    borderRadius: '5px',
+                    fontFamily: 'sans-serif',
+                    fontSize: '12px'
+                }}>
+                    <div style={{ marginBottom: '5px' }}>発射力: {launchPower.toFixed(1)}</div>
+                    <input 
+                        type="range" 
+                        min={LAUNCH_POWER_MIN} 
+                        max={LAUNCH_POWER_MAX} 
+                        step="0.5"
+                        value={launchPower}
+                        onChange={(e) => setLaunchPower(Number(e.target.value))}
+                        aria-label="発射力調整"
+                        style={{ width: '150px' }}
+                    />
+                </div>
+                
+                <div ref={sceneRef} />
             </div>
-            <div ref={sceneRef} />
+            
+            {/* デバッグ情報パネル（右側に配置） */}
+            {debugMode && (
+                <div className="debug-panel" style={{
+                    background: 'rgba(0, 0, 0, 0.92)',
+                    color: '#00ff00',
+                    padding: '16px',
+                    fontFamily: 'monospace',
+                    fontSize: '13px',
+                    borderRadius: '8px',
+                    border: '2px solid rgba(0, 255, 0, 0.3)',
+                    boxShadow: '0 0 20px rgba(0, 255, 0, 0.2)',
+                    minWidth: '240px',
+                    maxWidth: '280px',
+                    marginTop: '0'
+                }}>
+                    <div style={{ borderBottom: '2px solid #00ff00', marginBottom: '12px', paddingBottom: '8px', textAlign: 'center' }}>
+                        <strong style={{ fontSize: '15px' }}>🔧 DEBUG MODE</strong>
+                    </div>
+                    
+                    <div style={{ 
+                        background: 'rgba(0, 50, 0, 0.3)', 
+                        padding: '10px', 
+                        borderRadius: '5px',
+                        marginBottom: '12px'
+                    }}>
+                        <div style={{ lineHeight: '2', fontSize: '14px' }}>
+                            <div>📊 FPS: <span style={{ color: fps > 50 ? '#00ff00' : '#ffaa00', fontWeight: 'bold' }}>{fps}</span></div>
+                            <div>🎯 玉の数: <span style={{ color: '#00ffff', fontWeight: 'bold' }}>{ballCount}</span></div>
+                            <div>⚡ アクティブ釘: <span style={{ color: '#00ff00', fontWeight: 'bold' }}>{activePegCount}</span> / {totalPegCount}</div>
+                        </div>
+                    </div>
+                    
+                    <div style={{ fontSize: '11px', lineHeight: '2', color: '#aaffaa' }}>
+                        <div style={{ marginBottom: '8px', color: '#00ff00', fontWeight: 'bold' }}>📖 凡例</div>
+                        <div>🟢 緑円: 近接範囲 ({PEG_PROXIMITY_THRESHOLD}px)</div>
+                        <div>⚪ 灰円: 離脱範囲 ({PEG_LEAVE_THRESHOLD}px)</div>
+                        <div>📊 バー: 釘の健康度</div>
+                        <div>🔵 青円: 玉の追跡</div>
+                        <div>🟡 矢印: 速度ベクトル</div>
+                    </div>
+                    
+                    <div style={{ 
+                        marginTop: '12px', 
+                        paddingTop: '12px',
+                        borderTop: '1px solid rgba(0, 255, 0, 0.3)',
+                        fontSize: '10px', 
+                        color: '#888', 
+                        textAlign: 'center' 
+                    }}>
+                        Press 'D' to toggle
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
