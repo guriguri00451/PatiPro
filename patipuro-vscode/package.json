@@ -4,7 +4,7 @@
   "description": "コードを打つたびにパチンコの弾が発射される",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.93.0"
   },
   "categories": ["Other"],
   "activationEvents": [],
@@ -18,8 +18,63 @@
       {
         "command": "patipuro.stop",
         "title": "PatiPro: 停止"
+      },
+      {
+        "command": "patipuro.runBuild",
+        "title": "PatiPro: ビルド実行"
+      },
+      {
+        "command": "patipuro.runLint",
+        "title": "PatiPro: Lint実行"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "PatiPro",
+      "properties": {
+        "patipuro.buildCommand": {
+          "type": "string",
+          "default": "npm run build",
+          "description": "PatiPro: ビルド実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.lintCommand": {
+          "type": "string",
+          "default": "npm run lint",
+          "description": "PatiPro: Lint実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.buildPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "run build", "tsc", "webpack", "vite build",
+            "flutter build",
+            "cargo build",
+            "go build",
+            "gradle build", "gradlew build", "mvn package", "mvn install",
+            "swift build", "xcodebuild",
+            "make", "cmake --build",
+            "dotnet build"
+          ],
+          "description": "ターミナルでのビルドコマンドを検知するパターン（部分一致）"
+        },
+        "patipuro.lintPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "run lint", "eslint", "biome check", "biome lint", "deno lint",
+            "flutter analyze", "dart analyze",
+            "cargo clippy",
+            "go vet", "golangci-lint",
+            "pylint", "flake8", "ruff check", "mypy",
+            "rubocop",
+            "swiftlint",
+            "ktlint", "detekt",
+            "phpstan", "phpcs",
+            "dotnet format --verify-no-changes"
+          ],
+          "description": "ターミナルでのLintコマンドを検知するパターン（部分一致）"
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
