@@ -10,6 +10,42 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "patipuro-sidebar",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "patipuro-panel",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ]
+    },
+    "views": {
+      "patipuro-sidebar": [
+        {
+          "type": "webview",
+          "id": "patipuro.sidebarView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ],
+      "patipuro-panel": [
+        {
+          "type": "webview",
+          "id": "patipuro.panelView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ]
+    },
     "commands": [
       {
         "command": "patipuro.start",
