@@ -1,0 +1,11 @@
+{
+    "manifest_version": 3,
+    "name": "PatiPro Extension",
+    "version": "1.0.0",
+    "description": "パチンコ画面用拡張機能",
+    "permissions": [],
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": "icons/icon16.png"
+    }
+  }

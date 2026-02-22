@@ -1,0 +1,33 @@
+{
+  "name": "patipuro-vscode",
+  "displayName": "PatiPro",
+  "description": "コードを打つたびにパチンコの弾が発射される",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "patipuro.start",
+        "title": "PatiPro: 開始"
+      },
+      {
+        "command": "patipuro.stop",
+        "title": "PatiPro: 停止"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

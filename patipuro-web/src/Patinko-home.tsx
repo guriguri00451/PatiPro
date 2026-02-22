@@ -5,11 +5,15 @@ import Matter from 'matter-js';
 const BOARD_WIDTH = 400;
 const BOARD_HEIGHT = 600;
 
+const WS_URL = 'ws://localhost:8080';
+
 const Pachinko: React.FC = () => {
     // TypeScriptの型指定: HTMLDivElement | null
     const sceneRef = useRef<HTMLDivElement>(null);
     // Matter.Engineの型
     const engineRef = useRef<Matter.Engine>(Matter.Engine.create());
+    // shootBall を useRef で安定参照（WebSocketコールバックから呼ぶため）
+    const shootBallRef = useRef<() => void>(() => {});
 
     useEffect(() => {
         if (!sceneRef.current) return;
@@ -54,12 +58,45 @@ const Pachinko: React.FC = () => {
         Runner.run(runner, engine);
 
         // クリックイベントの登録
-        const handleMouseDown = () => shootBall();
+        const handleMouseDown = () => shootBallRef.current();
         window.addEventListener('mousedown', handleMouseDown);
+
+        // 4. WebSocketクライアント（サーバーなしでもクラッシュしない）
+        let ws: WebSocket | null = null;
+        const connectWS = () => {
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                console.log('[patipuro-web] WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'keypress') {
+                        shootBallRef.current();
+                    }
+                } catch {
+                    // ignore
+                }
+            };
+
+            ws.onerror = () => {
+                // サーバー未起動時は静かに無視
+            };
+
+            ws.onclose = () => {
+                console.log('[patipuro-web] WebSocket disconnected');
+                // 3秒後に再接続を試みる
+                setTimeout(connectWS, 3000);
+            };
+        };
+        connectWS();
 
         // クリーンアップ
         return () => {
             window.removeEventListener('mousedown', handleMouseDown);
+            ws?.close();
             Render.stop(render);
             Runner.stop(runner);
             Engine.clear(engine);
@@ -75,15 +112,18 @@ const Pachinko: React.FC = () => {
         const ball = Bodies.circle(380, 50, 8, {
             restitution: 0.5,
             friction: 0.005,
-            render: { 
+            render: {
                 // 今後Sprite画像を入れる場合はここを編集
-                fillStyle: '#00ffcc' 
+                fillStyle: '#00ffcc'
             }
         });
-        
+
         Body.setVelocity(ball, { x: -5, y: 0 });
         Composite.add(engineRef.current.world, ball);
     };
+
+    // shootBall の参照を常に最新に保つ
+    shootBallRef.current = shootBall;
 
     return (
         <div style={{ position: 'relative' }}>
