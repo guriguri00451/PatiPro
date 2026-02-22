@@ -1,0 +1,124 @@
+{
+  "name": "patipuro-vscode",
+  "displayName": "PatiPro",
+  "description": "コードを打つたびにパチンコの弾が発射される",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "patipuro-sidebar",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "patipuro-panel",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ]
+    },
+    "views": {
+      "patipuro-sidebar": [
+        {
+          "type": "webview",
+          "id": "patipuro.sidebarView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ],
+      "patipuro-panel": [
+        {
+          "type": "webview",
+          "id": "patipuro.panelView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "patipuro.start",
+        "title": "PatiPro: 開始"
+      },
+      {
+        "command": "patipuro.stop",
+        "title": "PatiPro: 停止"
+      },
+      {
+        "command": "patipuro.runBuild",
+        "title": "PatiPro: ビルド実行"
+      },
+      {
+        "command": "patipuro.runLint",
+        "title": "PatiPro: Lint実行"
+      }
+    ],
+    "configuration": {
+      "title": "PatiPro",
+      "properties": {
+        "patipuro.buildCommand": {
+          "type": "string",
+          "default": "npm run build",
+          "description": "PatiPro: ビルド実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.lintCommand": {
+          "type": "string",
+          "default": "npm run lint",
+          "description": "PatiPro: Lint実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.buildPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "run build", "tsc", "webpack", "vite build",
+            "flutter build",
+            "cargo build",
+            "go build",
+            "gradle build", "gradlew build", "mvn package", "mvn install",
+            "swift build", "xcodebuild",
+            "make", "cmake --build",
+            "dotnet build"
+          ],
+          "description": "ターミナルでのビルドコマンドを検知するパターン（部分一致）"
+        },
+        "patipuro.lintPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "run lint", "eslint", "biome check", "biome lint", "deno lint",
+            "flutter analyze", "dart analyze",
+            "cargo clippy",
+            "go vet", "golangci-lint",
+            "pylint", "flake8", "ruff check", "mypy",
+            "rubocop",
+            "swiftlint",
+            "ktlint", "detekt",
+            "phpstan", "phpcs",
+            "dotnet format --verify-no-changes"
+          ],
+          "description": "ターミナルでのLintコマンドを検知するパターン（部分一致）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
