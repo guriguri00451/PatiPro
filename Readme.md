@@ -1,5 +1,5 @@
 ## 動作確認
-・ルートディレクトリーで　``` docekr-compose up server web ```
+・ルートディレクトリーで　``` docker-compose up server web ```
 
 ・別Windowで patipuro-vscode を開く
 
