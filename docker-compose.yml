@@ -21,11 +21,3 @@ services:
     depends_on:
       - server
     command: sh -c "npm install && npm run dev -- --host"
-
-  # 拡張機能開発環境
-  extension:
-    image: node:20
-    volumes:
-      - ./patipuro-extension:/workspace
-    working_dir: /workspace
-    tty: true
