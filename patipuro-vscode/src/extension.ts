@@ -6,102 +6,34 @@ let textChangeDisposable: vscode.Disposable | null = null;
 let shellExecDisposable: vscode.Disposable | null = null;
 let statusBarItem: vscode.StatusBarItem;
 
+// patipuro-vscode/src/extension.ts の一部を修正
+
 function getWebviewContent(): string {
+    // Viteの開発サーバーURLを指定します
+    const devServerUrl = "http://localhost:5173";
+
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none';
-                 script-src 'unsafe-inline' https://cdnjs.cloudflare.com;
-                 style-src 'unsafe-inline';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #1a1a2e;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
-        }
-        #info {
-            color: #888;
-            padding: 6px 0;
-            font-family: sans-serif;
-            font-size: 12px;
-            letter-spacing: 0.05em;
-        }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a2e; }
+        iframe { width: 100%; height: 100%; border: none; }
     </style>
 </head>
 <body>
-    <div id="info">⌨️ コードを打つと玉が飛びます</div>
-    <div id="scene"></div>
+    <iframe src="${devServerUrl}" allow="scripts"></iframe>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script>
-        const { Engine, Render, Runner, Bodies, Body, Composite, World } = Matter;
+        const vscode = acquireVsCodeApi();
+        const iframe = document.querySelector('iframe');
 
-        const BOARD_WIDTH = 400;
-        const BOARD_HEIGHT = 560;
-
-        const engine = Engine.create();
-
-        const render = Render.create({
-            element: document.getElementById('scene'),
-            engine,
-            options: {
-                width: BOARD_WIDTH,
-                height: BOARD_HEIGHT,
-                wireframes: false,
-                background: '#1a1a2e'
-            }
-        });
-
-        // 壁
-        const ground    = Bodies.rectangle(BOARD_WIDTH / 2, BOARD_HEIGHT + 10, BOARD_WIDTH + 20, 20, { isStatic: true, render: { fillStyle: '#444' } });
-        const leftWall  = Bodies.rectangle(-10, BOARD_HEIGHT / 2, 20, BOARD_HEIGHT, { isStatic: true, render: { fillStyle: '#444' } });
-        const rightWall = Bodies.rectangle(BOARD_WIDTH + 10, BOARD_HEIGHT / 2, 20, BOARD_HEIGHT, { isStatic: true, render: { fillStyle: '#444' } });
-
-        // 釘
-        const pegs = [];
-        for (let i = 0; i < 8; i++) {
-            for (let j = 0; j < 6; j++) {
-                const x = 50 + j * 60 + (i % 2 === 0 ? 30 : 0);
-                const y = 80 + i * 50;
-                pegs.push(Bodies.circle(x, y, 5, {
-                    isStatic: true,
-                    render: { fillStyle: '#ffcc00' }
-                }));
-            }
-        }
-
-        World.add(engine.world, [ground, leftWall, rightWall, ...pegs]);
-        Render.run(render);
-        Runner.run(Runner.create(), engine);
-
-        // 玉を発射
-        function shootBall() {
-            const ball = Bodies.circle(380, 30, 8, {
-                restitution: 0.5,
-                friction: 0.005,
-                render: { fillStyle: '#00ffcc' }
-            });
-            Body.setVelocity(ball, { x: -5, y: 0 });
-            Composite.add(engine.world, ball);
-        }
-
-        // 拡張機能からのメッセージを受信
+        // VS Codeからのメッセージを受け取って iframe（React）に転送する
         window.addEventListener('message', (event) => {
-            const { type, count } = event.data;
-            if (type === 'keypress') {
-                shootBall();
-            } else if (type === 'burst') {
-                const n = count || 10;
-                for (let i = 0; i < n; i++) {
-                    setTimeout(() => shootBall(), i * 60);
-                }
-            }
+            const message = event.data;
+            // React側の window.onmessage に送る
+            iframe.contentWindow.postMessage(message, '*');
         });
     </script>
 </body>
@@ -202,6 +134,7 @@ export function activate(context: vscode.ExtensionContext) {
         textChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
             const hasInsertion = event.contentChanges.some(c => c.text.length > 0);
             if (hasInsertion) {
+                // 直接 Webview へ postMessage を送る
                 panel?.webview.postMessage({ type: 'keypress' });
             }
         });
