@@ -89,10 +89,11 @@ function updateStatusBar() {
 /**
  * シェルコマンドをVSCodeタスクとして実行し、終了コードに応じて弾を発射する
  */
-async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand') {
+async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand' | 'testCommand') {
     const config = vscode.workspace.getConfiguration('patipuro');
-    const cmd = config.get<string>(commandKey) ?? (commandKey === 'buildCommand' ? 'npm run build' : 'npm run lint');
-    const label = commandKey === 'buildCommand' ? 'ビルド' : 'Lint';
+    const defaultCmd = commandKey === 'buildCommand' ? 'npm run build' : commandKey === 'lintCommand' ? 'npm run lint' : 'npm test';
+    const cmd = config.get<string>(commandKey) ?? defaultCmd;
+    const label = commandKey === 'buildCommand' ? 'ビルド' : commandKey === 'lintCommand' ? 'Lint' : 'テスト';
 
     const task = new vscode.Task(
         { type: 'patipuro', command: commandKey },
@@ -145,6 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
         const config = vscode.workspace.getConfiguration('patipuro');
         const buildPatterns = config.get<string[]>('buildPatterns') ?? ['run build', 'tsc', 'webpack', 'vite build'];
         const lintPatterns  = config.get<string[]>('lintPatterns')  ?? ['run lint', 'eslint', 'biome check', 'biome lint'];
+        const testPatterns  = config.get<string[]>('testPatterns')  ?? ['run test', 'jest', 'vitest', 'pytest'];
 
         shellExecDisposable = vscode.window.onDidEndTerminalShellExecution(e => {
             if (e.exitCode === undefined || e.exitCode !== 0) { return; }
@@ -152,6 +154,7 @@ export function activate(context: vscode.ExtensionContext) {
             const cmd = e.execution.commandLine.value;
             const isBuild = buildPatterns.some(p => cmd.includes(p));
             const isLint  = lintPatterns.some(p => cmd.includes(p));
+            const isTest  = testPatterns.some(p => cmd.includes(p));
 
             if (isBuild) {
                 postMessageToAll({ type: 'burst', count: 15 });
@@ -159,6 +162,9 @@ export function activate(context: vscode.ExtensionContext) {
             } else if (isLint) {
                 postMessageToAll({ type: 'burst', count: 10 });
                 vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
+            } else if (isTest) {
+                postMessageToAll({ type: 'burst', count: 20 });
+                vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
             }
         });
 
@@ -182,7 +188,12 @@ export function activate(context: vscode.ExtensionContext) {
         runPatiTask('lintCommand');
     });
 
-    context.subscriptions.push(startCmd, stopCmd, runBuildCmd, runLintCmd, statusBarItem);
+    // テスト実行コマンド
+    const runTestCmd = vscode.commands.registerCommand('patipuro.runTest', () => {
+        runPatiTask('testCommand');
+    });
+
+    context.subscriptions.push(startCmd, stopCmd, runBuildCmd, runLintCmd, runTestCmd, statusBarItem);
 }
 
 export function deactivate() {

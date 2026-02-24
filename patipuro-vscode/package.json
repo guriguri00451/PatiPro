@@ -62,6 +62,10 @@
       {
         "command": "patipuro.runLint",
         "title": "PatiPro: Lint実行"
+      },
+      {
+        "command": "patipuro.runTest",
+        "title": "PatiPro: テスト実行"
       }
     ],
     "configuration": {
@@ -76,6 +80,11 @@
           "type": "string",
           "default": "npm run lint",
           "description": "PatiPro: Lint実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.testCommand": {
+          "type": "string",
+          "default": "npm test",
+          "description": "PatiPro: テスト実行コマンド（コマンドパレットから実行する場合）"
         },
         "patipuro.buildPatterns": {
           "type": "array",
@@ -108,6 +117,23 @@
             "dotnet format --verify-no-changes"
           ],
           "description": "ターミナルでのLintコマンドを検知するパターン（部分一致）"
+        },
+        "patipuro.testPatterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [
+            "run test", "jest", "vitest",
+            "pytest", "python -m pytest",
+            "go test",
+            "cargo test",
+            "flutter test",
+            "dotnet test",
+            "gradle test", "gradlew test", "mvn test",
+            "rspec",
+            "phpunit",
+            "xcodebuild test"
+          ],
+          "description": "ターミナルでのテストコマンドを検知するパターン（部分一致）"
         }
       }
     }
