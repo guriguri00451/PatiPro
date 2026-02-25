@@ -21,7 +21,6 @@ export class PegLayoutGenerator {
         // =========================================================
         // 1. 左上の玉の出口（図面の矢印部分）
         // =========================================================
-        // ※右打ちルートの通路を塞ぐため削除
 
         // =========================================================
         // 2. 左側の縦ルート（液晶の左に沿って落ちる道）
@@ -31,7 +30,7 @@ export class PegLayoutGenerator {
         // 内側の縦壁（液晶の左端に沿う）
         bodies.push(this.createWall(Bodies, 85, 260, 200, 8, Math.PI / 2));
         // 左上から縦ルートへの誘導壁（右打ち上昇路を塞ぐため削除）
-         bodies.push(this.createWall(Bodies, 65, 150, 60, 8, Math.PI / 4));
+        bodies.push(this.createWall(Bodies, 65, 150, 60, 8, Math.PI / 4));
 
         // =========================================================
         // 3. 左下：風車と、ヘソへ向かう斜めレール
@@ -86,17 +85,15 @@ export class PegLayoutGenerator {
         // 打ち出し用の内壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 25, 600, 25, 200));
         // 天井ドーム（棒セグメントの連結）
-        const domePoints: Point[] = [];
-        for (let a = Math.PI; a >= 0; a -= 0.08) {
-            domePoints.push({ x: 200 + 195 * Math.cos(a), y: 190 - 180 * Math.sin(a) });
-        }
-        domePoints.push({ x: 395, y: 190 }); // 右端を右壁に接続
-        for (let i = 0; i < domePoints.length - 1; i++) {
-            bodies.push(this.createWallSegment(Bodies,
-                domePoints[i].x, domePoints[i].y,
-                domePoints[i + 1].x, domePoints[i + 1].y
-            ));
-        }
+        bodies.push(this.createWallSegment(Bodies, 25, 500, 25, 200));
+        // 天井ドーム（棒セグメントの連結）
+        bodies.push(this.createWallSegment(Bodies, 25, 600, 25, 200));
+        // 天井ドーム（棒セグメントの連結）
+        const dome = this.createCurvedRail(Bodies, 5, 130, -60, 15, 40, 4);
+        bodies.push(...dome);
+        // 逆流弁
+        const ben = this.createCurvedRail(Bodies, 220, 190, 100, 180, 40, 10);
+        //bodies.push(...ben);
         // 大外の右壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 395, 190, 395, 600));
 
@@ -105,20 +102,9 @@ export class PegLayoutGenerator {
         // =========================================================
         // ① 上部内側カーブ壁（右打ちルートの天井ガイド）
         // π*0.70 始まりにして左上の入口を広く取る
-        const innerCurvePoints: Point[] = [];
-        for (let a = Math.PI * 0.88; a >= Math.PI * 0.05; a -= 0.08) {
-            innerCurvePoints.push({ x: 200 + 160 * Math.cos(a), y: 190 - 145 * Math.sin(a) });
-        }
-        innerCurvePoints.push({
-            x: 200 + 160 * Math.cos(Math.PI * 0.05),
-            y: 190 - 145 * Math.sin(Math.PI * 0.05)
-        });
-        for (let i = 0; i < innerCurvePoints.length - 1; i++) {
-            bodies.push(this.createWallSegment(Bodies,
-                innerCurvePoints[i].x, innerCurvePoints[i].y,
-                innerCurvePoints[i + 1].x, innerCurvePoints[i + 1].y
-            ));
-        }
+        // 天井ドーム（棒セグメントの連結）
+        const underDome = this.createCurvedRail(Bodies, 5, 130, -60, 15, 40, 4);
+        bodies.push(...underDome);
         // ② 右側チャンネル内壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 365, 190, 365, 440));
         // ③ 右打ちルート排出斜め壁（チャンネル下端からメインフィールドへ合流）
@@ -171,6 +157,50 @@ export class PegLayoutGenerator {
         });
     }
 
+/**
+ * 曲がるレールを生成する
+ * @param startX 開始X
+ * @param startY 開始Y
+ * @param startAngleDegree 開始時の傾き（度）
+ * @param segmentLength 壁1枚の長さ
+ * @param count 壁の個数
+ * @param angleStep 1枚ごとに変化させる角度（プラスで時計回り、マイナスで反時計回り）
+ */
+private static createCurvedRail(
+    Bodies: any, 
+    startX: number, 
+    startY: number, 
+    startAngleDegree: number, 
+    segmentLength: number, 
+    count: number, 
+    angleStep: number
+) {
+    const bodies: Matter.Body[] = [];
+    let currentX = startX;
+    let currentY = startY;
+    let currentAngle = (startAngleDegree * Math.PI) / 180;
+    const stepRad = (angleStep * Math.PI) / 180;
+
+    for (let i = 0; i < count; i++) {
+        // 次の座標を計算
+        const nextX = currentX + segmentLength * Math.cos(currentAngle);
+        const nextY = currentY + segmentLength * Math.sin(currentAngle);
+
+        // 壁（セグメント）を配置
+        bodies.push(this.createWallSegment(
+            Bodies,
+            currentX, currentY,
+            nextX, nextY
+        ));
+
+        // 状態を更新
+        currentX = nextX;
+        currentY = nextY;
+        currentAngle += stepRad; // ここで「曲がり具合」を加算
+    }
+    return bodies;
+}
+
     private static createWallSegment(
         Bodies: typeof Matter.Bodies,
         x1: number, y1: number,
@@ -193,6 +223,8 @@ export class PegLayoutGenerator {
             render: { fillStyle: '#c0c0c0' }
         });
     }
+
+    
 
     private static createMicroWallPeg(Bodies: typeof Matter.Bodies, x: number, y: number): Matter.Body {
         return Bodies.circle(x, y, this.MICRO_PEG_RADIUS * 1.2, {

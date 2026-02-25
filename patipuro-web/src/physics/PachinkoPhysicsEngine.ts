@@ -113,7 +113,7 @@ export class PachinkoPhysicsEngine {
         const launchY = 565;
 
         const ball = Bodies.circle(launchX, launchY, 5.2, {
-            restitution: 0.5,
+            restitution: 0.9,
             friction: 0.005,
             frictionAir: 0.001,  // 空気抵抗（すり抜け防止）
             slop: 0.005,  // より厳密に
@@ -121,6 +121,12 @@ export class PachinkoPhysicsEngine {
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
                 fillStyle: '#ff6b6b' // パチンコ玉っぽい色
+            },
+            // --- すり抜け対策の核 ---
+            plugin: {
+                continuous: {
+                    enabled: true // 連続衝突判定を有効化
+                }
             }
         });
 
@@ -129,7 +135,7 @@ export class PachinkoPhysicsEngine {
         const speed = this.rushMode
             ? 25 + Math.random() * 2   // 右打ち：強め（27〜29）
             : 16 + Math.random() * 2;  // 通常（18〜20）
-        const dirX = 0.02;
+        const dirX = 0.08;
         const dirY = -1.0;
 
         Body.setVelocity(ball, { x: speed * dirX, y: speed * dirY });
