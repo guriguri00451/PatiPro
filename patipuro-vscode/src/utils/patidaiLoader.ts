@@ -11,10 +11,15 @@ export interface EffectSet {
     stageEffectType: 'none' | 'A' | 'B' | 'C';
 }
 
+export interface RushMovieEntry {
+    video: string;
+    audio: string | null;
+}
+
 export interface RushMoviePaths {
-    reach: string[];
-    success: string[];
-    failure: string[];
+    reach: RushMovieEntry[];
+    success: RushMovieEntry[];
+    failure: RushMovieEntry[];
 }
 
 export interface LoadedDaiData {
@@ -118,13 +123,22 @@ export async function loadPatidai(zipPath: string, context: vscode.ExtensionCont
         const moviesDir = path.join(actualRoot, 'assets', 'movies');
         if (!fs.existsSync(moviesDir)) return { reach: [], success: [], failure: [] };
 
-        const readCategory = (subDir: string, urlPrefix: string): string[] => {
+        const readCategory = (subDir: string, urlPrefix: string): RushMovieEntry[] => {
             const dir = path.join(moviesDir, subDir);
             if (!fs.existsSync(dir)) return [];
             return fs.readdirSync(dir)
                 .filter(f => /\.(mp4|webm|mov)$/i.test(f) && fs.statSync(path.join(dir, f)).size > 0)
                 .sort()
-                .map(f => `${urlPrefix}/${f}`);
+                .map(f => {
+                    const base = f.replace(/\.[^.]+$/, '');
+                    const audioExt = ['.mp3', '.ogg', '.wav'].find(ext =>
+                        fs.existsSync(path.join(dir, base + ext))
+                    ) ?? null;
+                    return {
+                        video: `${urlPrefix}/${f}`,
+                        audio: audioExt ? `${urlPrefix}/${base + audioExt}` : null,
+                    };
+                });
         };
 
         return {
