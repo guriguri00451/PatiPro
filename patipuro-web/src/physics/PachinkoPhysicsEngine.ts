@@ -24,6 +24,7 @@ export class PachinkoPhysicsEngine {
     private stopperCooldown: Map<number, number> = new Map();
     private lowSpeedSince: Map<number, number> = new Map();
     private launchPhaseBalls: Set<number> = new Set(); // 発射レーン通過中の玉（速度上限免除）
+    private rushMode: boolean = false;
     private readonly WIN_RAIL_PROBABILITY = 0.5;
     private readonly WIN_ENTRY_TARGET = { x: 92, y: 172 };
     private readonly LOSE_ENTRY_TARGET = { x: 212, y: 116 };
@@ -87,6 +88,13 @@ export class PachinkoPhysicsEngine {
     }
 
     /**
+     * ラッシュモード（右打ち）の切り替え
+     */
+    setRushMode(enabled: boolean): void {
+        this.rushMode = enabled;
+    }
+
+    /**
      * へそコールバックを後付けで設定
      */
     setHesoCallback(cb: (ball: Matter.Body) => void): void {
@@ -115,8 +123,11 @@ export class PachinkoPhysicsEngine {
             }
         });
 
-        // 下から上へ打ち出し（レーンに沿って上昇し、天井カーブで右へ）
-        const speed = 18 + Math.random() * 2;
+        // 下から上へ打ち出し
+        // ラッシュ中（右打ち）は強めに発射して右チャンネルへ
+        const speed = this.rushMode
+            ? 27 + Math.random() * 2   // 右打ち：強め（27〜29）
+            : 18 + Math.random() * 2;  // 通常（18〜20）
         const dirX = 0.02;
         const dirY = -1.0;
 

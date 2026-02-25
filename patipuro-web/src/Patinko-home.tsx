@@ -66,7 +66,12 @@ const Pachinko: React.FC = () => {
     }, []); // Refとstableセッターのみ使用するので依存配列は []
 
     // スロット回転完了時：保留を消化する
-    const handleSlotResult = useCallback((_reels: string[], _isWin: boolean) => {
+    const handleSlotResult = useCallback((_reels: string[], isWin: boolean) => {
+        if (isWin) {
+            // 数字が揃った → ラッシュ突入＆右打ちモード
+            setIsRushOpen(true);
+            physicsEngineRef.current.setRushMode(true);
+        }
         if (pendingCountRef.current > 0) {
             setPending(pendingCountRef.current - 1);
             setTimeout(() => {
@@ -517,7 +522,8 @@ useEffect(() => {
                 moviePaths={testMoviePaths}
                 onRushEnd={() => {
                     console.log("ラッシュ終了！");
-                    setIsRushOpen(false); // 終了したら画面を閉じる
+                    setIsRushOpen(false);
+                    physicsEngineRef.current.setRushMode(false); // 右打ち解除
                 }}
             />
         </div>
