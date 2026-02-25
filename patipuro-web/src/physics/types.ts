@@ -8,8 +8,6 @@ export const PHYSICS_CONFIG = {
     BOARD_HEIGHT: 600,
     PEG_PROXIMITY_THRESHOLD: 18,  // 玉が釘に近づいたと判定する距離
     PEG_LEAVE_THRESHOLD: 28,      // 玉が離れたと判定する距離
-    LAUNCH_POWER_MIN: 12,
-    LAUNCH_POWER_MAX: 30,
 } as const;
 
 /**

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 
-const { BOARD_WIDTH, BOARD_HEIGHT, PEG_PROXIMITY_THRESHOLD, PEG_LEAVE_THRESHOLD, LAUNCH_POWER_MIN, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
+const { BOARD_WIDTH, BOARD_HEIGHT } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
 
@@ -20,13 +20,9 @@ const Pachinko: React.FC = () => {
     // 連続発射用
     const isShootingRef = useRef(false);
     const shootIntervalRef = useRef<number | null>(null);
-    const [launchPower, setLaunchPower] = React.useState<number>(LAUNCH_POWER_MAX);
-    const launchPowerRef = useRef<number>(LAUNCH_POWER_MAX);
     // デバッグ情報表示用
     const [fps, setFps] = React.useState(0);
     const [ballCount, setBallCount] = React.useState(0);
-    const [activePegCount, setActivePegCount] = React.useState(0);
-    const [totalPegCount, setTotalPegCount] = React.useState(0);
 
     useEffect(() => {
         if (!sceneRef.current) return;
@@ -34,7 +30,6 @@ const Pachinko: React.FC = () => {
         const { Render, Runner, Bodies, World } = Matter;
         const physicsEngine = physicsEngineRef.current;
         const engine = physicsEngine.getEngine();
-        const pegManager = physicsEngine.getPegManager();
 
         // 1. レンダラーの設定
         const render = Render.create({
@@ -55,17 +50,13 @@ const Pachinko: React.FC = () => {
         
         // 釘の作成（リアルなパチンコ配置）
         const pegs = PegLayoutGenerator.generateRealisticPegs(Bodies);
-        
-        // 物理エンジンに釘を登録
-        pegs.forEach(peg => {
-            const x = peg.position.x;
-            const y = peg.position.y;
-            pegManager.addPeg(peg, x, y);
-        });
+        const centerMonitorSensor = PegLayoutGenerator.createCenterMonitorSensor(Bodies);
+        physicsEngine.registerMonitorSensor(centerMonitorSensor);
 
         World.add(engine.world, [
             ground, leftWall, rightWall, 
-            ...pegs
+            ...pegs,
+            centerMonitorSensor
         ]);
 
         // 3. 物理エンジンの実行
@@ -80,6 +71,12 @@ const Pachinko: React.FC = () => {
             });
         });
 
+        Matter.Events.on(engine, 'collisionEnd', (event) => {
+            event.pairs.forEach((pair) => {
+                physicsEngine.handleCollisionEnd(pair);
+            });
+        });
+
         // 毎フレーム実行される更新ロジック
         Matter.Events.on(engine, 'beforeUpdate', () => {
             // 物理エンジンの更新
@@ -89,8 +86,6 @@ const Pachinko: React.FC = () => {
             const debugInfo = physicsEngine.getDebugInfo();
             setFps(debugInfo.fps);
             setBallCount(debugInfo.ballCount);
-            setActivePegCount(debugInfo.activePegCount);
-            setTotalPegCount(debugInfo.totalPegCount);
         });
 
         // クリックイベントの登録（長押しで連続発射）
@@ -98,7 +93,7 @@ const Pachinko: React.FC = () => {
             const target = e.target as HTMLElement;
 
             // UI操作中は発射しない
-            if (target.closest('.debug-panel') || target.closest('.launch-power-control')) return;
+            if (target.closest('.debug-panel')) return;
 
             // 盤面上のクリックのみ発射
             if (!sceneRef.current?.contains(target)) return;
@@ -170,6 +165,7 @@ const Pachinko: React.FC = () => {
             window.removeEventListener('keydown', handleKeyDown);
             stopShooting();
             Matter.Events.off(engine, 'collisionStart');
+            Matter.Events.off(engine, 'collisionEnd');
             Matter.Events.off(engine, 'beforeUpdate');
             ws?.close();
             Render.stop(render);
@@ -186,12 +182,8 @@ const Pachinko: React.FC = () => {
 
 // 玉を発射する関数（物理エンジンを使用）
 const shootBall = (): void => {
-    physicsEngineRef.current.shootBall(launchPowerRef.current);
+    physicsEngineRef.current.shootBall();
 };
-
-useEffect(() => {
-    launchPowerRef.current = launchPower;
-}, [launchPower]);
 
 // 連続発射開始
 const startShooting = (): void => {
@@ -230,7 +222,6 @@ useEffect(() => {
     if (!ctx) return;
     
     const physicsEngine = physicsEngineRef.current;
-    const pegManager = physicsEngine.getPegManager();
     
     const drawDebug = () => {
         ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
@@ -239,74 +230,6 @@ useEffect(() => {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.fillRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT);
         
-        // 釘の状態を描画
-        pegManager.getAllPegStates().forEach((pegState) => {
-                const { body, health, isActive, totalImpacts } = pegState;
-                const x = body.position.x;
-                const y = body.position.y;
-                
-                // 近接/離脱範囲の円（アクティブ時のみ表示）
-                if (isActive) {
-                    ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.arc(x, y, PEG_LEAVE_THRESHOLD, 0, Math.PI * 2);
-                    ctx.stroke();
-
-                    ctx.strokeStyle = 'rgba(0, 255, 100, 0.6)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(x, y, PEG_PROXIMITY_THRESHOLD, 0, Math.PI * 2);
-                    ctx.stroke();
-                    
-                    // アクティブマーカー（パルス効果）
-                    const pulse = Math.sin(Date.now() / 200) * 0.3 + 0.5;
-                    ctx.fillStyle = `rgba(0, 255, 100, ${pulse})`;
-                    ctx.beginPath();
-                    ctx.arc(x, y, 7, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                
-                // 健康度バー（見やすく改善）
-                const barWidth = 30;
-                const barHeight = 4;
-                const barX = x - barWidth / 2;
-                const barY = y + 12;
-                
-                // バー背景
-                ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
-                ctx.fillRect(barX, barY, barWidth, barHeight);
-                
-                // 健康度（グラデーション）
-                const healthColor = health > 0.5 
-                    ? `rgba(${255 * (1 - health) * 2}, 255, 0, 0.9)` 
-                    : `rgba(255, ${255 * health * 2}, 0, 0.9)`;
-                ctx.fillStyle = healthColor;
-                ctx.fillRect(barX, barY, barWidth * health, barHeight);
-                
-                // 枠線
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(barX, barY, barWidth, barHeight);
-                
-                // 健康度テキスト（影付き）
-                const healthText = `${(health * 100).toFixed(0)}`;
-                ctx.font = 'bold 10px monospace';
-                // 影
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-                ctx.fillText(healthText, x - 8, y - 8);
-                // 本体
-                ctx.fillStyle = isActive ? '#00ff00' : '#ffffff';
-                ctx.fillText(healthText, x - 9, y - 9);
-                
-                // 衝突回数（劣化が進んでいる釘のみ表示）
-                if (totalImpacts > 10) {
-                    ctx.font = '8px monospace';
-                    ctx.fillStyle = 'rgba(255, 100, 100, 0.7)';
-                    ctx.fillText(`×${totalImpacts}`, x + 10, y + 20);
-                }
-            });
-            
             // 玉の周りのマーカー（より目立つように）
             physicsEngine.getBalls().forEach((ball) => {
                 // 外側の円（パルス）
@@ -360,31 +283,6 @@ useEffect(() => {
                     クリック長押しで連続発射 {debugMode && <span style={{ color: '#00ff00' }}>| DEBUG: ON</span>}
                 </div>
                 
-                {/* 発射力調整 */}
-                <div className="launch-power-control" style={{
-                    position: 'absolute',
-                    bottom: 10,
-                    left: 10,
-                    background: 'rgba(0, 0, 0, 0.7)',
-                    color: 'white',
-                    padding: '8px 12px',
-                    borderRadius: '5px',
-                    fontFamily: 'sans-serif',
-                    fontSize: '12px'
-                }}>
-                    <div style={{ marginBottom: '5px' }}>発射力: {launchPower.toFixed(1)}</div>
-                    <input 
-                        type="range" 
-                        min={LAUNCH_POWER_MIN} 
-                        max={LAUNCH_POWER_MAX} 
-                        step="0.5"
-                        value={launchPower}
-                        onChange={(e) => setLaunchPower(Number(e.target.value))}
-                        aria-label="発射力調整"
-                        style={{ width: '150px' }}
-                    />
-                </div>
-                
                 <div ref={sceneRef} />
             </div>
             
@@ -416,15 +314,11 @@ useEffect(() => {
                         <div style={{ lineHeight: '2', fontSize: '14px' }}>
                             <div>📊 FPS: <span style={{ color: fps > 50 ? '#00ff00' : '#ffaa00', fontWeight: 'bold' }}>{fps}</span></div>
                             <div>🎯 玉の数: <span style={{ color: '#00ffff', fontWeight: 'bold' }}>{ballCount}</span></div>
-                            <div>⚡ アクティブ釘: <span style={{ color: '#00ff00', fontWeight: 'bold' }}>{activePegCount}</span> / {totalPegCount}</div>
                         </div>
                     </div>
                     
                     <div style={{ fontSize: '11px', lineHeight: '2', color: '#aaffaa' }}>
                         <div style={{ marginBottom: '8px', color: '#00ff00', fontWeight: 'bold' }}>📖 凡例</div>
-                        <div>🟢 緑円: 近接範囲 ({PEG_PROXIMITY_THRESHOLD}px)</div>
-                        <div>⚪ 灰円: 離脱範囲 ({PEG_LEAVE_THRESHOLD}px)</div>
-                        <div>📊 バー: 釘の健康度</div>
                         <div>🔵 青円: 玉の追跡</div>
                         <div>🟡 矢印: 速度ベクトル</div>
                     </div>
