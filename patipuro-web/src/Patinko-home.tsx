@@ -3,6 +3,7 @@ import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 import { RushMode } from './components/RushMode';
 import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
+import { BgmPlayer } from './components/BgmPlayer';
 
 const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
@@ -38,6 +39,14 @@ const Pachinko: React.FC = () => {
     const [totalPegCount, setTotalPegCount] = useState(0);
     
     const [isRushOpen, setIsRushOpen] = useState(false);
+    const [bgmTracks, setBgmTracks] = useState<string[]>(['/bgm/bgm_normal_01.mp3']);
+    const [boardBackground, setBoardBackground] = useState<string>('');
+
+    // VSCode拡張のwebviewページに「Reactが準備完了」を通知する
+    // → webviewページはキューに溜めていた LOAD_DAI メッセージをここで流す
+    useEffect(() => {
+        window.parent.postMessage({ type: 'PATIPURO_READY' }, '*');
+    }, []);
 
     // 保留カウント（UIにはState、コールバック内はRefで最新値参照）
     const [pendingCount, setPendingCount] = useState<number>(0);
@@ -196,6 +205,13 @@ const Pachinko: React.FC = () => {
                 for (let i = 0; i < count; i++) {
                     setTimeout(() => shootBallRef.current(), i * 80);
                 }
+            } else if (msg.command === 'LOAD_DAI') {
+                const bgmDataUrls: string[] = msg.payload?.bgmDataUrls ?? [];
+                if (bgmDataUrls.length > 0) {
+                    setBgmTracks(bgmDataUrls);
+                }
+                const bg: string = msg.payload?.boardBackground ?? '';
+                if (bg) setBoardBackground(bg);
             }
         };
         window.addEventListener('message', handlePostMessage);
@@ -396,6 +412,22 @@ useEffect(() => {
                 </div>
 
                 <div style={{ position: 'relative' }}>
+                    {/* 盤面背景画像 */}
+                    {boardBackground && (
+                        <img
+                            src={boardBackground}
+                            alt=""
+                            style={{
+                                position: 'absolute',
+                                top: 0, left: 0,
+                                width: BOARD_WIDTH,
+                                height: BOARD_HEIGHT,
+                                objectFit: 'cover',
+                                zIndex: 0,
+                                pointerEvents: 'none',
+                            }}
+                        />
+                    )}
                     <div ref={sceneRef} style={{ position: 'relative', zIndex: 2 }} />
 
                     {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
@@ -467,6 +499,9 @@ useEffect(() => {
                 </div>
             </div>
             
+            {/* BGMプレイヤー */}
+            <BgmPlayer tracks={bgmTracks} muted={isRushOpen} />
+
             {/* デバッグ情報パネル（右側に配置） */}
             {debugMode && (
                 <div className="debug-panel" style={{

@@ -25,17 +25,34 @@ function getWebviewContent(): string {
     </style>
 </head>
 <body>
-    <iframe src="${devServerUrl}" allow="scripts"></iframe>
+    <iframe src="${devServerUrl}" allow="scripts; autoplay"></iframe>
 
     <script>
         const vscode = acquireVsCodeApi();
         const iframe = document.querySelector('iframe');
 
-        // VS Codeからのメッセージを受け取って iframe（React）に転送する
+        // Reactアプリが準備完了するまでメッセージをキューに溜める
+        let iframeReady = false;
+        let messageQueue = [];
+
         window.addEventListener('message', (event) => {
-            const message = event.data;
-            // React側の window.onmessage に送る
-            iframe.contentWindow.postMessage(message, '*');
+            if (event.source === iframe.contentWindow) {
+                // iframe（React）からのメッセージ → VS Codeへ転送
+                if (event.data?.type === 'PATIPURO_READY') {
+                    // React準備完了：キューに溜まったメッセージを一括送信
+                    iframeReady = true;
+                    messageQueue.forEach(msg => iframe.contentWindow.postMessage(msg, '*'));
+                    messageQueue = [];
+                }
+                vscode.postMessage(event.data);
+            } else {
+                // VS Codeからのメッセージ → iframeへ転送（未準備ならキュー）
+                if (iframeReady) {
+                    iframe.contentWindow.postMessage(event.data, '*');
+                } else {
+                    messageQueue.push(event.data);
+                }
+            }
         });
     </script>
 </body>
@@ -108,17 +125,20 @@ export async function selectPatidai(context: vscode.ExtensionContext) { // async
         // パス変換のためにpanel.webviewを渡す
         const daiData = await loadPatidai(selectedZipPath, context, panel.webview);
 
+        const loadDaiMessage = { command: 'LOAD_DAI', payload: daiData };
+
         // メインパネルに送信
-        panel.webview.postMessage({
-            command: 'LOAD_DAI',
-            payload: daiData
+        panel.webview.postMessage(loadDaiMessage);
+
+        // React側から PATIPURO_READY が来たら再送（iframeがまだ起動中だった場合のフォールバック）
+        panel.webview.onDidReceiveMessage(msg => {
+            if (msg?.type === 'PATIPURO_READY') {
+                panel.webview.postMessage(loadDaiMessage);
+            }
         });
 
         // サイドバーなどの他のViewにも一斉送信
-        postMessageToAll({
-            command: 'LOAD_DAI',
-            payload: daiData
-        });
+        postMessageToAll(loadDaiMessage);
 
         vscode.window.showInformationMessage(`${daiData.stageConfig.name || "台"} の読み込みが完了しました！`);
     } catch (error) {
