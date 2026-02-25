@@ -359,15 +359,15 @@ useEffect(() => {
                 </div>
 
                 <div style={{ position: 'relative' }}>
-                    <div ref={sceneRef} />
+                    <div ref={sceneRef} style={{ position: 'relative', zIndex: 2 }} />
 
-                    {/* スロット液晶オーバーレイ */}
+                    {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
                     <div style={{
                         position: 'absolute',
                         top: 150,
                         left: 85,
                         pointerEvents: 'none',
-                        zIndex: 10,
+                        zIndex: 1,
                     }}>
                         <SlotMachine ref={slotRef} compact />
                     </div>
