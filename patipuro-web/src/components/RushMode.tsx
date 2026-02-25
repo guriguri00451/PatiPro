@@ -117,42 +117,54 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         position: 'absolute',
         inset: 0,
         zIndex: 100,
-        background: '#000',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        overflow: 'hidden',
+        pointerEvents: 'none',
       }}
     >
-      {/* メイン動画プレイヤー */}
-      {currentSrc && (
-        <video
-          key={spinKey}
-          src={currentSrc}
-          autoPlay
-          muted
-          playsInline
-          onEnded={handleVideoEnded}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-          }}
-        />
-      )}
-
-      {/* 残り回数カウンター（右下） */}
+      {/* 動画エリア（盤面中央に小さく表示） */}
       <div
         style={{
-          position: 'absolute',
-          bottom: 24,
-          right: 24,
-          textAlign: 'right',
-          fontFamily: '"Courier New", "Orbitron", monospace',
-          pointerEvents: 'none',
-          userSelect: 'none',
+          position: 'relative',
+          width: '75%',
+          maxWidth: 280,
+          aspectRatio: '16 / 9',
+          background: '#000',
+          borderRadius: 8,
+          overflow: 'hidden',
+          boxShadow: '0 0 20px rgba(0,0,0,0.8)',
+          pointerEvents: 'auto',
         }}
       >
+        {currentSrc && (
+          <video
+            key={spinKey}
+            src={currentSrc}
+            autoPlay
+            muted
+            playsInline
+            onEnded={handleVideoEnded}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        )}
+
+        {/* 残り回数カウンター（動画右下） */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            right: 10,
+            textAlign: 'right',
+            fontFamily: '"Courier New", "Orbitron", monospace',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
         {/* ラベル */}
         <div
           style={{
@@ -169,15 +181,14 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         {/* カウント数値 */}
         <div
           style={{
-            fontSize: 56,
+            fontSize: 28,
             fontWeight: 900,
             lineHeight: 1,
             letterSpacing: 2,
             color: countColor,
             textShadow: `
-              0 0 10px ${countColor},
-              0 0 30px ${countColor}88,
-              0 0 60px ${countColor}44
+              0 0 6px ${countColor},
+              0 0 16px ${countColor}88
             `,
             transition: 'color 0.3s ease',
           }}
@@ -188,10 +199,10 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         {/* 最大回数 */}
         <div
           style={{
-            fontSize: 11,
+            fontSize: 9,
             letterSpacing: 2,
             color: '#666',
-            marginTop: 4,
+            marginTop: 2,
           }}
         >
           / {maxSpins}
@@ -200,9 +211,9 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         {/* 残り少ない時の警告バー */}
         <div
           style={{
-            marginTop: 8,
-            height: 3,
-            width: 120,
+            marginTop: 4,
+            height: 2,
+            width: 60,
             background: '#222',
             borderRadius: 2,
             overflow: 'hidden',
@@ -214,11 +225,12 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
               height: '100%',
               width: `${(remainingSpins / maxSpins) * 100}%`,
               background: countColor,
-              boxShadow: `0 0 6px ${countColor}`,
+              boxShadow: `0 0 4px ${countColor}`,
               transition: 'width 0.4s ease, background 0.3s ease',
             }}
           />
         </div>
+      </div>
       </div>
     </div>
   );

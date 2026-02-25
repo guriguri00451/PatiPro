@@ -9,6 +9,8 @@ type Props = {
   compact?: boolean;
 };
 
+//const DEBUG_ALWAYS_WIN = true; // デバッグ用：true にすると必ず揃う
+
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const SPIN_INTERVAL_MS = 60;
 const STOP_TIMES = [1000, 2000, 3000];
@@ -47,6 +49,14 @@ export const SlotMachine = React.forwardRef<SlotMachineHandle, Props>(
           intervalsRef.current[i] = null;
 
           if (i === 2) {
+
+            // if (DEBUG_ALWAYS_WIN) {
+            //   const winValue = reelsRef.current[0];
+            //   updateReel(1, winValue);
+            //   updateReel(2, winValue);
+            //   reelsRef.current[1] = winValue;
+            //   reelsRef.current[2] = winValue;
+            // }
             const finalReels = [...reelsRef.current];
             const isWin = finalReels[0] === finalReels[1] && finalReels[1] === finalReels[2];
             setWin(isWin);
