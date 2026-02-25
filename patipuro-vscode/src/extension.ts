@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { loadPatidai } from './utils/patidaiLoader';
-import * as path from 'path'; // 追加
-import * as fs from 'fs';   // 追加
+import { startAssetServer, stopAssetServer } from './utils/assetServer';
+import * as path from 'path';
+import * as fs from 'fs';
 
 let isActive = false;
 let textChangeDisposable: vscode.Disposable | null = null;
@@ -125,7 +126,11 @@ export async function selectPatidai(context: vscode.ExtensionContext) { // async
         // パス変換のためにpanel.webviewを渡す
         const daiData = await loadPatidai(selectedZipPath, context, panel.webview);
 
-        const loadDaiMessage = { command: 'LOAD_DAI', payload: daiData };
+        // アセットサーバーを起動してファイルをHTTPで配信
+        const port = await startAssetServer(daiData.extractedRoot);
+        const assetServerUrl = `http://127.0.0.1:${port}`;
+
+        const loadDaiMessage = { command: 'LOAD_DAI', payload: { ...daiData, assetServerUrl } };
 
         // メインパネルに送信
         panel.webview.postMessage(loadDaiMessage);
@@ -284,6 +289,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     stopPatiPro();
+    stopAssetServer();
 }
 
 

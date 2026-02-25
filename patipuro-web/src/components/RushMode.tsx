@@ -46,7 +46,6 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
   const maxSpinsRef         = useRef(maxSpins);
   const onRushEndRef        = useRef(onRushEnd);
   const moviePathsRef       = useRef(moviePaths);
-  const videoRef            = useRef<HTMLVideoElement>(null);
 
   // Props変化を即座にRefへ反映
   useEffect(() => { onRushEndRef.current  = onRushEnd;   }, [onRushEnd]);
@@ -151,10 +150,10 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       >
         {currentSrc && (
           <video
-            ref={videoRef}
             key={spinKey}
             src={currentSrc}
             autoPlay
+            muted
             playsInline
             onEnded={handleVideoEnded}
             style={{

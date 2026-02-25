@@ -41,6 +41,11 @@ const Pachinko: React.FC = () => {
     const [isRushOpen, setIsRushOpen] = useState(false);
     const [bgmTracks, setBgmTracks] = useState<string[]>(['/bgm/bgm_normal_01.mp3']);
     const [boardBackground, setBoardBackground] = useState<string>('');
+    const [rushMovies, setRushMovies] = useState({
+        reach:   ['https://www.w3schools.com/html/mov_bbb.mp4'],
+        success: ['https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'],
+        failure: ['https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4'],
+    });
 
     // VSCode拡張のwebviewページに「Reactが準備完了」を通知する
     // → webviewページはキューに溜めていた LOAD_DAI メッセージをここで流す
@@ -206,12 +211,27 @@ const Pachinko: React.FC = () => {
                     setTimeout(() => shootBallRef.current(), i * 80);
                 }
             } else if (msg.command === 'LOAD_DAI') {
-                const bgmDataUrls: string[] = msg.payload?.bgmDataUrls ?? [];
-                if (bgmDataUrls.length > 0) {
-                    setBgmTracks(bgmDataUrls);
+                const serverUrl: string = msg.payload?.assetServerUrl ?? '';
+
+                // BGM
+                const bgmPaths: string[] = msg.payload?.bgmPaths ?? [];
+                if (bgmPaths.length > 0) {
+                    setBgmTracks(bgmPaths.map((p: string) => `${serverUrl}${p}`));
                 }
-                const bg: string = msg.payload?.boardBackground ?? '';
-                if (bg) setBoardBackground(bg);
+
+                // 背景画像
+                const bgPath: string = msg.payload?.boardBackgroundPath ?? '';
+                if (bgPath) setBoardBackground(`${serverUrl}${bgPath}`);
+
+                // ラッシュ演出動画
+                const movies = msg.payload?.rushMoviePaths;
+                if (movies) {
+                    setRushMovies(prev => ({
+                        reach:   movies.reach.length   > 0 ? movies.reach.map((p: string) => `${serverUrl}${p}`)   : prev.reach,
+                        success: movies.success.length > 0 ? movies.success.map((p: string) => `${serverUrl}${p}`) : prev.success,
+                        failure: movies.failure.length > 0 ? movies.failure.map((p: string) => `${serverUrl}${p}`) : prev.failure,
+                    }));
+                }
             }
         };
         window.addEventListener('message', handlePostMessage);
@@ -364,19 +384,6 @@ useEffect(() => {
 
     // shootBall の参照を常に最新に保つ
     shootBallRef.current = shootBall;
-    // ---仮置きしてます。動画再生できるようになったら、消してください---
-    const testMoviePaths = {
-        reach: [
-            "https://www.w3schools.com/html/mov_bbb.mp4",
-        ],
-        success: [
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" 
-        ],
-        failure: [
-            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4" 
-        ]
-    };
-    // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
             <div style={{ position: 'relative' }}>
@@ -534,7 +541,7 @@ useEffect(() => {
             <RushMode
                 isOpen={isRushOpen}
                 maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
-                moviePaths={testMoviePaths}
+                moviePaths={rushMovies}
                 onRushEnd={() => {
                     console.log("ラッシュ終了！");
                     setIsRushOpen(false);
