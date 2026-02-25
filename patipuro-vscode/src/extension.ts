@@ -144,9 +144,9 @@ export function activate(context: vscode.ExtensionContext) {
 
         // ターミナルでのビルド・Lintコマンドを検知して発射
         const config = vscode.workspace.getConfiguration('patipuro');
-        const buildPatterns = config.get<string[]>('buildPatterns') ?? ['run build', 'tsc', 'webpack', 'vite build'];
-        const lintPatterns  = config.get<string[]>('lintPatterns')  ?? ['run lint', 'eslint', 'biome check', 'biome lint'];
-        const testPatterns  = config.get<string[]>('testPatterns')  ?? ['run test', 'jest', 'vitest', 'pytest'];
+        const buildPatterns = config.get<string[]>('buildPatterns') ?? []; //情報源を一つにするために削除
+        const lintPatterns  = config.get<string[]>('lintPatterns')  ?? [];
+        const testPatterns  = config.get<string[]>('testPatterns')  ?? [];
 
         shellExecDisposable = vscode.window.onDidEndTerminalShellExecution(e => {
             if (e.exitCode === undefined || e.exitCode !== 0) { return; }
