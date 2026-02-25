@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import { loadPatidai } from './utils/patidaiLoader';
+import * as path from 'path'; // 追加
+import * as fs from 'fs';   // 追加
 
 let isActive = false;
 let textChangeDisposable: vscode.Disposable | null = null;
@@ -46,6 +49,8 @@ function postMessageToAll(message: object) {
     });
 }
 
+
+
 class PatiProViewProvider implements vscode.WebviewViewProvider {
     resolveWebviewView(webviewView: vscode.WebviewView) {
         webviewView.webview.options = {
@@ -58,6 +63,66 @@ class PatiProViewProvider implements vscode.WebviewViewProvider {
         webviewView.onDidDispose(() => {
             activeViews.delete(webviewView);
         });
+    }
+}
+
+/**
+ * 台を選択して読み込むメイン関数
+ */
+export async function selectPatidai(context: vscode.ExtensionContext) { // asyncを追加
+    // 1. ファイル選択ダイアログ
+    const fileUri = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'パチ台を読み込む',
+        filters: { 'PatiDai Files': ['patidai', 'zip'] }
+    });
+
+    if (!fileUri || fileUri.length === 0) {
+        vscode.window.showInformationMessage('台の選択がキャンセルされました');
+        return;
+    }
+
+    const selectedZipPath = fileUri[0].fsPath;
+
+    // 2. Webviewパネルの作成（メイン画面）
+    const panel = vscode.window.createWebviewPanel(
+        'pachinkoView',
+        'パチプロ演出画面',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true, // タブを切り替えても状態を維持
+            localResourceRoots: [
+                vscode.Uri.file(path.join(context.extensionPath, 'dist')),
+                context.globalStorageUri // 解凍先へのアクセスを許可
+            ]
+        }
+    );
+
+    panel.webview.html = getWebviewContent();
+
+    // 3. データの読み込みと送信
+    try {
+        vscode.window.showInformationMessage('台を設置中...');
+        
+        // パス変換のためにpanel.webviewを渡す
+        const daiData = await loadPatidai(selectedZipPath, context, panel.webview);
+
+        // メインパネルに送信
+        panel.webview.postMessage({
+            command: 'LOAD_DAI',
+            payload: daiData
+        });
+
+        // サイドバーなどの他のViewにも一斉送信
+        postMessageToAll({
+            command: 'LOAD_DAI',
+            payload: daiData
+        });
+
+        vscode.window.showInformationMessage(`${daiData.stageConfig.name || "台"} の読み込みが完了しました！`);
+    } catch (error) {
+        vscode.window.showErrorMessage('台の読み込みに失敗しました: ' + error);
     }
 }
 
@@ -131,8 +196,9 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // 開始コマンド
-    const startCmd = vscode.commands.registerCommand('patipuro.start', () => {
+    const startCmd = vscode.commands.registerCommand('patipuro.start',async () => {
         isActive = true;
+        await selectPatidai(context);
 
         // 文字が追加されたときだけ発射（Backspace・削除は除外）
         textChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
@@ -199,3 +265,5 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     stopPatiPro();
 }
+
+

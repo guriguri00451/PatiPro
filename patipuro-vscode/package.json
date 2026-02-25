@@ -6,7 +6,9 @@
   "engines": {
     "vscode": "^1.93.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -88,47 +90,77 @@
         },
         "patipuro.buildPatterns": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [
-            "run build", "tsc", "webpack", "vite build",
+            "run build",
+            "tsc",
+            "webpack",
+            "vite build",
             "flutter build",
             "cargo build",
             "go build",
-            "gradle build", "gradlew build", "mvn package", "mvn install",
-            "swift build", "xcodebuild",
-            "make", "cmake --build",
+            "gradle build",
+            "gradlew build",
+            "mvn package",
+            "mvn install",
+            "swift build",
+            "xcodebuild",
+            "make",
+            "cmake --build",
             "dotnet build"
           ],
           "description": "ターミナルでのビルドコマンドを検知するパターン（部分一致）"
         },
         "patipuro.lintPatterns": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [
-            "run lint", "eslint", "biome check", "biome lint", "deno lint",
-            "flutter analyze", "dart analyze",
+            "run lint",
+            "eslint",
+            "biome check",
+            "biome lint",
+            "deno lint",
+            "flutter analyze",
+            "dart analyze",
             "cargo clippy",
-            "go vet", "golangci-lint",
-            "pylint", "flake8", "ruff check", "mypy",
+            "go vet",
+            "golangci-lint",
+            "pylint",
+            "flake8",
+            "ruff check",
+            "mypy",
             "rubocop",
             "swiftlint",
-            "ktlint", "detekt",
-            "phpstan", "phpcs",
+            "ktlint",
+            "detekt",
+            "phpstan",
+            "phpcs",
             "dotnet format --verify-no-changes"
           ],
           "description": "ターミナルでのLintコマンドを検知するパターン（部分一致）"
         },
         "patipuro.testPatterns": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "default": [
-            "run test", "jest", "vitest",
-            "pytest", "python -m pytest",
+            "run test",
+            "jest",
+            "vitest",
+            "pytest",
+            "python -m pytest",
             "go test",
             "cargo test",
             "flutter test",
             "dotnet test",
-            "gradle test", "gradlew test", "mvn test",
+            "gradle test",
+            "gradlew test",
+            "mvn test",
             "rspec",
             "phpunit",
             "xcodebuild test"
@@ -143,8 +175,12 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
   }
 }
