@@ -95,6 +95,29 @@ export class PegLayoutGenerator {
         for (let y = 190; y <= 600; y += 8) outerRailPoints.push({ x: 395, y }); // 大外の右壁
         outerRailPoints.forEach(p => bodies.push(this.createMicroWallPeg(Bodies, p.x, p.y)));
 
+        // =========================================================
+        // 8. 右打ちルート（隙間→右上→右チャンネル→メインフィールド）
+        // =========================================================
+        // ① 上部内側カーブ壁（右打ちルートの天井ガイド）
+        // ドーム内側・半径160x/145yの半円、角度π×0.88→π×0.05（左上の隙間から右上へ）
+        for (let a = Math.PI * 0.88; a >= Math.PI * 0.05; a -= 0.04) {
+            bodies.push(this.createMicroWallPeg(Bodies,
+                200 + 160 * Math.cos(a),
+                190 - 145 * Math.sin(a)
+            ));
+        }
+        // ② 右側チャンネル内壁（x=365、外側右壁x=395との幅30pxチャンネル）
+        for (let y = 190; y <= 440; y += 8) {
+            bodies.push(this.createMicroWallPeg(Bodies, 365, y));
+        }
+        // ③ 右打ちルート排出斜め壁（チャンネル下端からメインフィールドへ合流）
+        bodies.push(this.createWall(Bodies, 380, 470, 70, 8, -0.75));
+
+        bodies.push(this.createWall(Bodies, 340, 470, 70, 8, -0.75));
+
+        bodies.push(this.createWall(Bodies, 320, 520, 8, 30, 0)); // 左壁
+        bodies.push(this.createWall(Bodies, 348, 520, 8, 30, 0)); // 右壁
+
         // 液晶センサー
         bodies.push(this.createCenterMonitorSensor(Bodies));
 
