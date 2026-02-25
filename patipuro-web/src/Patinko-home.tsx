@@ -379,26 +379,6 @@ useEffect(() => {
     // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-            {/* DEBUG用 */}
-            <button 
-                onClick={() => setIsRushOpen(true)}
-                style={{
-                    position: 'absolute',
-                    top: 20,
-                    right: 20,
-                    zIndex: 200, // ラッシュ画面より上に表示（テスト用）
-                    padding: '10px 20px',
-                    fontSize: '16px',
-                    cursor: 'pointer',
-                    background: '#ff0055',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px'
-                }}
-            >
-                🔥 ラッシュテスト起動 🔥
-            </button>
-            {/* DEBUG用 */}
             <div style={{ position: 'relative' }}>
                 <div style={{
                     color: 'white',
