@@ -1,97 +1,117 @@
-# PatiPro プロジェクト全体図
+# PatiPro システム概要
 
-## 何を作っているか
+## このシステムで何ができるか
 
-**PatiPro（パティプロ）** は、VS Code でコードを書くたびにパチンコの玉が飛ぶ拡張機能です。
-キーを押すたびにパチンコ玉が発射され、釘（ペグ）にぶつかりながら落ちていきます。
-ビルドや Lint が成功すると大量の玉が一気に放出されます（「大当たり！」演出）。
-
-```
-コードを書く → 玉が発射される → 釘にぶつかる → 楽しい 🎰
-```
+VSCode拡張機能でパチ台データ（zipファイル）を選択すると、VSCode内のWebviewパネルにパチンコ台が表示され、コードを書くたびに玉が発射されるゲーミング開発体験ができるシステムです。台ごとに背景画像・BGM・演出動画を差し替えられるのが特徴で、誰でも「自分だけのパチ台」を作って読み込ませることができます。
 
 ---
 
-## 技術スタック
+## 全体アーキテクチャ
 
-| レイヤー | 技術 |
-|---|---|
-| VS Code 拡張機能 | TypeScript + VS Code Extension API |
-| フロントエンド (物理シミュレーション) | React 19 + TypeScript + Vite |
-| 物理演算ライブラリ | Matter.js 0.20 |
-| WebSocket サーバー（マルチプレイ用） | Node.js + ws ライブラリ |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  VSCode 拡張機能 (patipuro-vscode)                               │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐                   │
+│  │  extension.ts                             │                   │
+│  │  - コマンド登録 (patipuro.start 等)       │                   │
+│  │  - テキスト変更 / ターミナル実行の監視    │                   │
+│  │  - ファイル選択ダイアログの表示           │                   │
+│  └──────────────────┬───────────────────────┘                   │
+│                     │ loadPatidai() 呼び出し                     │
+│  ┌──────────────────▼───────────────────────┐                   │
+│  │  utils/patidaiLoader.ts                   │                   │
+│  │  - zip解凍                                │                   │
+│  │  - stageconfig.json 読み込み              │                   │
+│  │  - 画像・BGMをbase64データURLに変換       │                   │
+│  └──────────────────┬───────────────────────┘                   │
+│                     │ LoadedDaiData を返す                       │
+│  ┌──────────────────▼───────────────────────┐                   │
+│  │  Webviewページ (getWebviewContent())      │  ← 第1層         │
+│  │  HTML/JS で動的生成された仲介ページ       │                   │
+│  │  - PATIPURO_READY ハンドシェイク処理      │                   │
+│  │  - メッセージキュー管理                   │                   │
+│  └──────────────────┬───────────────────────┘                   │
+│                     │ iframe埋め込み                             │
+└─────────────────────┼───────────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────────┐
+│  React アプリ (patipuro-web / http://localhost:5173)  ← 第2層   │
+│                                                                  │
+│  ┌──────────────────────────────────────────┐                   │
+│  │  Patinko-home.tsx                         │                   │
+│  │  - LOAD_DAI メッセージ受信                │                   │
+│  │  - bgmTracks / boardBackground の更新     │                   │
+│  │  - 物理エンジン (Matter.js) の管理        │                   │
+│  └──────────┬──────────────┬────────────────┘                   │
+│             │              │                                     │
+│  ┌──────────▼──┐  ┌────────▼───────┐  ┌──────────────────┐    │
+│  │ BgmPlayer   │  │ SlotMachine    │  │ RushMode         │    │
+│  │ (BGM再生)   │  │ (スロット演出) │  │ (ラッシュ演出)   │    │
+│  └─────────────┘  └────────────────┘  └──────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3層構造の役割
+
+| 層 | 場所 | 役割 |
+|----|------|------|
+| 第1層：VSCode拡張（メイン処理） | `patipuro-vscode/src/` | zipの選択・解凍・データ変換・メッセージ送信 |
+| 第2層：Webviewページ（仲介） | `getWebviewContent()` 内のHTML文字列 | iframeのホスト。メッセージ中継とキュー管理を担う |
+| 第3層：Reactアプリ（UI） | `patipuro-web/src/` | 実際のパチンコ台UI・物理演算・BGM再生 |
+
+なぜ3層に分かれているかは [02_load_flow.md](02_load_flow.md) で詳しく説明します。
 
 ---
 
-## ディレクトリ構造
+## ディレクトリ構造ツリー
 
 ```
-PatiPro/
-├── patipuro-vscode/          # VS Code 拡張機能本体
-│   ├── src/
-│   │   └── extension.ts      # 拡張機能のエントリポイント（唯一のソースファイル）
-│   ├── out/
-│   │   └── extension.js      # TypeScript のコンパイル結果（自動生成）
-│   ├── icons/                # 拡張機能アイコン
-│   └── package.json          # 拡張機能の定義（コマンド・設定・ビュー）
+/Users/kotaro/PatiPro/
 │
-├── patipuro-web/             # パチンコ画面（React アプリ）
-│   └── src/
-│       ├── main.tsx          # React エントリポイント
-│       ├── App.tsx           # ルートコンポーネント（スタート画面 ↔ ゲーム画面の切替）
-│       ├── Patinko-home.tsx  # パチンコ盤コンポーネント（UI の核心）
-│       └── physics/          # 物理演算モジュール群（責務分離）
-│           ├── index.ts      # 外部向けエクスポート窓口
-│           ├── types.ts      # 型定義・設定定数
-│           ├── PachinkoPhysicsEngine.ts  # 物理エンジン本体（玉の管理・衝突処理）
-│           ├── PegStateManager.ts        # 釘の状態管理（疲労・健康度）
-│           └── PegLayoutGenerator.ts    # 釘の配置パターン生成
+├── patipuro-vscode/src/          # VSCode拡張機能のソース
+│   ├── extension.ts              # エントリーポイント。コマンド登録・イベント監視
+│   └── utils/
+│       └── patidaiLoader.ts      # zip読み込み・データ変換のコア処理
 │
-├── patipuro-server/          # WebSocket リレーサーバー（マルチプレイ用）
-│   └── server.js             # keypress イベントを全クライアントにブロードキャスト
+├── patipuro-web/src/             # Reactアプリ（パチンコ台UI）
+│   ├── Patinko-home.tsx          # メインコンポーネント（物理演算・メッセージ受信）
+│   ├── components/
+│   │   ├── BgmPlayer.tsx         # BGM再生コンポーネント
+│   │   ├── SlotMachine.tsx       # スロット演出コンポーネント
+│   │   └── RushMode.tsx          # ラッシュ演出コンポーネント
+│   ├── physics/
+│   │   ├── index.ts              # 物理エンジン公開インターフェース
+│   │   ├── PachinkoPhysicsEngine.ts  # Matter.js ラッパー
+│   │   ├── PegLayoutGenerator.ts     # 釘配置生成
+│   │   ├── HesoManager.ts            # へそ（中心穴）管理
+│   │   ├── PegStateManager.ts        # 釘状態管理
+│   │   └── types.ts                  # 型定義・定数
+│   ├── App.tsx
+│   └── main.tsx
 │
-├── patipuro-extension/       # （アイコン素材のみ、未使用の可能性あり）
-├── patipuro-playground/      # 動作確認用のテストファイル置き場
-└── docs/
-    └── learning/             # このドキュメント群
+└── sample-root/patipuro/patidais/  # サンプルパチ台データ
+    ├── A.patidai/                  # サンプル台A（展開済みフォルダ）
+    │   ├── assets/
+    │   │   ├── bgm/                # BGMファイル（toudai.mp3 など）
+    │   │   ├── images/             # 盤面背景画像（jyogi.png など）
+    │   │   └── movies/             # 演出動画（reach_01.mp4 など）
+    │   └── configs/
+    │       ├── stageconfig.json    # 台の設定ファイル（BGM・動画パスを定義）
+    │       └── effects/            # 演出設定JSONフォルダ
+    │           ├── normal/         # 通常時演出（reach/ / success/）
+    │           └── rush/           # ラッシュ時演出（reach/ / success/）
+    ├── A.patidai.zip               # 配布用zipファイル（これを拡張機能に読み込む）
+    └── B.patidai/                  # サンプル台B（同じ構造）
 ```
 
 ---
 
-## システム全体のデータフロー（概略）
+## ドキュメント一覧
 
-```
-[VS Code エディタ]
-     |  文字入力イベント
-     v
-[extension.ts]
-     |  WebView に postMessage({ type: 'keypress' })
-     v
-[Webview HTML (iframe)]
-     |  iframe.contentWindow.postMessage(...)
-     v
-[React: Patinko-home.tsx]
-     |  shootBall() を呼ぶ
-     v
-[PachinkoPhysicsEngine]
-     |  Matter.js で玉を生成・速度を設定
-     v
-[Matter.js 物理演算]
-     |  毎フレーム位置・速度を更新
-     v
-[PegStateManager]  ← 衝突時に釘の健康度を減らす
-     |
-     v
-[Matter.js Render]  → 画面に描画（Canvas）
-```
-
----
-
-## 開発環境の起動方法（まずここを確認）
-
-1. Docker を起動する
-2. ルートで `docker-compose up server web` を実行
-3. VS Code で `F5`（または `fn+F5`）を押して拡張機能を起動
-4. 「Extension Development Host」ウィンドウが開く
-5. `Shift+Cmd+P` → 「PatiPro: 開始」を選択
-6. `patipuro-playground/Playground` のファイルを開いて文字を入力してみる
+| ファイル | 内容 |
+|----------|------|
+| [00_overview.md](00_overview.md) | このファイル。全体像とアーキテクチャ |
+| [01_patidai_format.md](01_patidai_format.md) | パチ台フォーマット解説（自作台の作り方） |
+| [02_load_flow.md](02_load_flow.md) | zip読み込みからReact表示までのフロー |
+| [03_bgm_background.md](03_bgm_background.md) | BGM・背景画像の仕組み |
