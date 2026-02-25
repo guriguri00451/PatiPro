@@ -10,6 +10,7 @@ src/
     ├── types.ts                # 型定義・定数
     ├── PegStateManager.ts      # 釘の状態管理（疲労・近接フラグ）
     ├── PegLayoutGenerator.ts   # 編集しやすい釘座標生成
+    ├── HesoManager.ts          # へそ（玉が入る穴）の検知
     └── PachinkoPhysicsEngine.ts # 物理演算コア
 ```
 
@@ -37,12 +38,18 @@ src/
 - 同一ペア衝突の重複防止（フレーム内 + 時間クールダウン）
 - 最高速度制限とアウト口/タイムアウト削除あり
 
+### へそ (`HesoManager.ts`, `types.ts`)
+- 玉が指定範囲（円形）内に入ると検知し、コールバック呼び出し後に玉を削除
+- 位置・半径は `types.ts` の `HESO_X`, `HESO_Y`, `HESO_RADIUS` で設定
+- UI 実装方法は `docs/patipuro-web/heso_ui_implementation.md` を参照
+
 ## 調整ポイント
 
 - 発射強度レンジ: `types.ts` の `LAUNCH_POWER_MIN/MAX`
 - 近接判定距離: `types.ts` の `PEG_PROXIMITY_THRESHOLD`, `PEG_LEAVE_THRESHOLD`
 - 釘レイアウト: `PegLayoutGenerator.ts` の `rowSpecs`, `customPegs`, `buildZigzagColumns`
 - 疲労速度: `PegStateManager.ts` の `fatigueAmount` 計算式
+- へそ位置・サイズ: `types.ts` の `HESO_X`, `HESO_Y`, `HESO_RADIUS`
 
 ## 使い方（最小例）
 
