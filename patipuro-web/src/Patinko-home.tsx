@@ -131,7 +131,22 @@ const Pachinko: React.FC = () => {
             debugCanvasRef.current = canvas;
         }
 
-        // 4. WebSocketクライアント（サーバーなしでもクラッシュしない）
+        // 4. VS Code 拡張機能からの postMessage（Webview iframe 経由）
+        const handlePostMessage = (event: MessageEvent) => {
+            const msg = event.data;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.type === 'keypress') {
+                shootBallRef.current();
+            } else if (msg.type === 'burst' && typeof msg.count === 'number') {
+                const count = Math.min(Math.max(1, msg.count), 50);
+                for (let i = 0; i < count; i++) {
+                    setTimeout(() => shootBallRef.current(), i * 80);
+                }
+            }
+        };
+        window.addEventListener('message', handlePostMessage);
+
+        // 5. WebSocketクライアント（別クライアント間の keypress 共有用）
         let ws: WebSocket | null = null;
         const connectWS = () => {
             ws = new WebSocket(WS_URL);
@@ -145,6 +160,11 @@ const Pachinko: React.FC = () => {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'keypress') {
                         shootBallRef.current();
+                    } else if (msg.type === 'burst' && typeof msg.count === 'number') {
+                        const count = Math.min(Math.max(1, msg.count), 50);
+                        for (let i = 0; i < count; i++) {
+                            setTimeout(() => shootBallRef.current(), i * 80);
+                        }
                     }
                 } catch {
                     // ignore
@@ -165,6 +185,7 @@ const Pachinko: React.FC = () => {
 
         // クリーンアップ
         return () => {
+            window.removeEventListener('message', handlePostMessage);
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
             window.removeEventListener('keydown', handleKeyDown);
