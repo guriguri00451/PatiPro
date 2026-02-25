@@ -25,6 +25,7 @@ export class PachinkoPhysicsEngine {
     private lowSpeedSince: Map<number, number> = new Map();
     private launchPhaseBalls: Set<number> = new Set(); // 発射レーン通過中の玉（速度上限免除）
     private rushMode: boolean = false;
+    private rushModeBalls: Set<number> = new Set(); // 右打ち中の玉
     private readonly WIN_RAIL_PROBABILITY = 0.5;
     private readonly WIN_ENTRY_TARGET = { x: 92, y: 172 };
     private readonly LOSE_ENTRY_TARGET = { x: 212, y: 116 };
@@ -126,8 +127,8 @@ export class PachinkoPhysicsEngine {
         // 下から上へ打ち出し
         // ラッシュ中（右打ち）は強めに発射して右チャンネルへ
         const speed = this.rushMode
-            ? 27 + Math.random() * 2   // 右打ち：強め（27〜29）
-            : 18 + Math.random() * 2;  // 通常（18〜20）
+            ? 25 + Math.random() * 2   // 右打ち：強め（27〜29）
+            : 16 + Math.random() * 2;  // 通常（18〜20）
         const dirX = 0.02;
         const dirY = -1.0;
 
@@ -135,6 +136,7 @@ export class PachinkoPhysicsEngine {
         Composite.add(this.engine.world, ball);
         this.balls.add(ball);
         this.launchPhaseBalls.add(ball.id); // 発射レーン通過中として登録
+        if (this.rushMode) this.rushModeBalls.add(ball.id); // 右打ち玉として登録
 
         // 玉が下に落ちたら削除（アウト口）
         const checkInterval = setInterval(() => {
@@ -164,6 +166,7 @@ export class PachinkoPhysicsEngine {
             this.stopperCooldown.delete(ball.id);
             this.lowSpeedSince.delete(ball.id);
             this.launchPhaseBalls.delete(ball.id);
+            this.rushModeBalls.delete(ball.id);
             
             // この球に関連する衝突時刻レコードをクリーンアップ
             const ballId = ball.id;
@@ -200,17 +203,24 @@ export class PachinkoPhysicsEngine {
         }
 
         // 各玉について、近くの釘をチェック + 速度制限 + へそ判定
-        const maxSpeed = 12; // すり抜け防止のための最大速度
         this.balls.forEach((ball) => {
             this.pegManager.updateProximity(ball.position);
 
-            // 発射レーン通過中（y > 150 かつ x < 30）はレーン免除を解除しない
-            // 上端を抜けたら通常制限に戻す
-            if (this.launchPhaseBalls.has(ball.id) && ball.position.y < 160) {
-                this.launchPhaseBalls.delete(ball.id);
+            const isRushBall = this.rushModeBalls.has(ball.id);
+
+            // 発射レーン通過中の速度制限免除を解除するタイミング
+            // 通常：上端（y < 160）で解除
+            // 右打ち：右チャンネルに到達（x > 260）するまで解除しない
+            if (this.launchPhaseBalls.has(ball.id)) {
+                const shouldExit = isRushBall
+                    ? ball.position.x > 260  // 右打ち：右半分に入るまで高速維持
+                    : ball.position.y < 160; // 通常：上端で解除
+                if (shouldExit) this.launchPhaseBalls.delete(ball.id);
             }
 
             // 速度が速すぎる場合は制限する（発射レーン内は免除）
+            // 右打ち玉は通常より高い上限（右チャンネルまでのエネルギーを確保）
+            const maxSpeed = isRushBall ? 20 : 12;
             const speed = Math.sqrt(ball.velocity.x ** 2 + ball.velocity.y ** 2);
             if (!this.launchPhaseBalls.has(ball.id) && speed > maxSpeed) {
                 const scale = maxSpeed / speed;
@@ -406,6 +416,7 @@ export class PachinkoPhysicsEngine {
         this.stopperCooldown.clear();
         this.lowSpeedSince.clear();
         this.launchPhaseBalls.clear();
+        this.rushModeBalls.clear();
         this.monitorEnterListeners.clear();
         this.monitorLeaveListeners.clear();
         this.pegManager.clear();
