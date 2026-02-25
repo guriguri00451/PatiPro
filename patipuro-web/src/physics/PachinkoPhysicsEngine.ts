@@ -117,7 +117,7 @@ export class PachinkoPhysicsEngine {
         });
 
         // 下から上へ打ち出し（レーンに沿って上昇し、天井カーブで右へ）
-        const speed = 18;
+        const speed = 18 + Math.random() * 2;
         const dirX = 0.02;
         const dirY = -1.0;
 
@@ -227,6 +227,15 @@ export class PachinkoPhysicsEngine {
                 this.lowSpeedSince.delete(ball.id);
             }
         });
+
+        // 発射レーン底部に溜まった玉を削除（上向きに動いていない玉のみ）
+        const laneStragglers: Matter.Body[] = [];
+        this.balls.forEach((ball) => {
+            if (ball.position.x < 30 && ball.position.y > 555 && ball.velocity.y > -1) {
+                laneStragglers.push(ball);
+            }
+        });
+        laneStragglers.forEach((ball) => this.removeBall(ball));
 
         // へそに入った玉を検知して削除
         const hesoEntered = this.hesoManager.checkBalls(this.balls);
