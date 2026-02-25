@@ -94,7 +94,8 @@ export async function selectPatidai(context: vscode.ExtensionContext) { // async
             retainContextWhenHidden: true, // タブを切り替えても状態を維持
             localResourceRoots: [
                 vscode.Uri.file(path.join(context.extensionPath, 'dist')),
-                context.globalStorageUri // 解凍先へのアクセスを許可
+                context.globalStorageUri, 
+                vscode.Uri.file(path.dirname(selectedZipPath)) // 台があるフォルダも念のため
             ]
         }
     );
@@ -104,10 +105,12 @@ export async function selectPatidai(context: vscode.ExtensionContext) { // async
     // 3. データの読み込みと送信
     try {
         vscode.window.showInformationMessage('台を設置中...');
-        
+        // 1. React側が起動してリスナーを登録するまで待機（1秒程度）
+        await new Promise(resolve => setTimeout(resolve, 3000));
         // パス変換のためにpanel.webviewを渡す
         const daiData = await loadPatidai(selectedZipPath, context, panel.webview);
 
+        console.log(daiData)
         // メインパネルに送信
         panel.webview.postMessage({
             command: 'LOAD_DAI',

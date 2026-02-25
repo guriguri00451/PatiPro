@@ -9,6 +9,9 @@ const WS_URL = 'ws://localhost:8080';
 const RUSH_MAX_SPINS = 10;
 
 const Pachinko: React.FC = () => {
+    // PatiData
+    const [patiData, setPatiData] = useState<any>(null);
+
     // TypeScriptの型指定: HTMLDivElement | null
     const sceneRef = useRef<HTMLDivElement>(null);
     // shootBall を useRef で安定参照（WebSocketコールバックから呼ぶため）
@@ -137,6 +140,10 @@ const Pachinko: React.FC = () => {
         const handlePostMessage = (event: MessageEvent) => {
             const msg = event.data;
             if (!msg || typeof msg !== 'object') return;
+
+            // デバッグ用：何が届いたかコンソールに出す
+            console.log("Webview Received:", msg.command, msg);
+
             if (msg.type === 'keypress') {
                 shootBallRef.current();
             } else if (msg.type === 'burst' && typeof msg.count === 'number') {
@@ -144,6 +151,9 @@ const Pachinko: React.FC = () => {
                 for (let i = 0; i < count; i++) {
                     setTimeout(() => shootBallRef.current(), i * 80);
                 }
+            } else if (msg.command === 'LOAD_DAI') {
+                console.log("台データを読み込みました:", msg.payload);
+                setPatiData(msg.payload); // ここで代入！
             }
         };
         window.addEventListener('message', handlePostMessage);
@@ -311,7 +321,29 @@ useEffect(() => {
     // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-            {/* DEBUG用 */}
+            {/* DEBUG用：データの存在を確認 */}
+            {patiData ? (
+                <div style={{ 
+                    border: '5px solid red', // 赤い枠を付けて場所を特定
+                    padding: '10px',
+                    background: 'white',
+                    color: 'black',
+                    zIndex: 9999 // 絶対に手前に出す
+                }}>
+                    <p>台データ読み込み成功: {patiData.stageConfig.name}</p>
+                    <img 
+                        src={patiData.assets[patiData.stageConfig.stageImage]} 
+                        alt="stage" 
+                        style={{ maxWidth: '200px', display: 'block' }}
+                        onError={(e) => {
+                            console.error("画像読み込み失敗:", e);
+                            console.log("Failed URL:", e.currentTarget.src);
+                        }}
+                    />
+                </div>
+            ) : (
+                <div style={{ color: 'gray' }}>台データ待ち...</div>
+            )}
             <button 
                 onClick={() => setIsRushOpen(true)}
                 style={{
