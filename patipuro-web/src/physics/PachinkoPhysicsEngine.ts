@@ -23,6 +23,7 @@ export class PachinkoPhysicsEngine {
     private readonly COLLISION_COOLDOWN = 100; // 同じペアは100ms間隔でのみ疲労適用
     private stopperCooldown: Map<number, number> = new Map();
     private lowSpeedSince: Map<number, number> = new Map();
+    private launchPhaseBalls: Set<number> = new Set(); // 発射レーン通過中の玉（速度上限免除）
     private readonly WIN_RAIL_PROBABILITY = 0.5;
     private readonly WIN_ENTRY_TARGET = { x: 92, y: 172 };
     private readonly LOSE_ENTRY_TARGET = { x: 212, y: 116 };
@@ -98,9 +99,9 @@ export class PachinkoPhysicsEngine {
     shootBall(): Matter.Body {
         const { Bodies, Body, Composite } = Matter;
 
-        // 発射位置：左上（短距離でネズミ返しに当たる位置）
-        const launchX = 26;
-        const launchY = 150;
+        // 発射位置：左下の打ち出しレーン底部（x=5外壁とx=25内壁の間）
+        const launchX = 15;
+        const launchY = 565;
 
         const ball = Bodies.circle(launchX, launchY, 5.2, {
             restitution: 0.5,
@@ -115,14 +116,15 @@ export class PachinkoPhysicsEngine {
             }
         });
 
-        // 固定の打ち出し初速（強めに打ち出し、ネズミ返しでランダム分岐）
-        const speed = 12.6;
-        const dirX = 0.9;
-        const dirY = -0.42;
+        // 下から上へ打ち出し（レーンに沿って上昇し、天井カーブで右へ）
+        const speed = 18;
+        const dirX = 0.02;
+        const dirY = -1.0;
 
         Body.setVelocity(ball, { x: speed * dirX, y: speed * dirY });
         Composite.add(this.engine.world, ball);
         this.balls.add(ball);
+        this.launchPhaseBalls.add(ball.id); // 発射レーン通過中として登録
 
         // 玉が下に落ちたら削除（アウト口）
         const checkInterval = setInterval(() => {
@@ -151,6 +153,7 @@ export class PachinkoPhysicsEngine {
             this.ballInMonitorZone.delete(ball.id);
             this.stopperCooldown.delete(ball.id);
             this.lowSpeedSince.delete(ball.id);
+            this.launchPhaseBalls.delete(ball.id);
             
             // この球に関連する衝突時刻レコードをクリーンアップ
             const ballId = ball.id;
@@ -190,10 +193,16 @@ export class PachinkoPhysicsEngine {
         const maxSpeed = 12; // すり抜け防止のための最大速度
         this.balls.forEach((ball) => {
             this.pegManager.updateProximity(ball.position);
-            
-            // 速度が速すぎる場合は制限する
+
+            // 発射レーン通過中（y > 150 かつ x < 30）はレーン免除を解除しない
+            // 上端を抜けたら通常制限に戻す
+            if (this.launchPhaseBalls.has(ball.id) && ball.position.y < 160) {
+                this.launchPhaseBalls.delete(ball.id);
+            }
+
+            // 速度が速すぎる場合は制限する（発射レーン内は免除）
             const speed = Math.sqrt(ball.velocity.x ** 2 + ball.velocity.y ** 2);
-            if (speed > maxSpeed) {
+            if (!this.launchPhaseBalls.has(ball.id) && speed > maxSpeed) {
                 const scale = maxSpeed / speed;
                 Matter.Body.setVelocity(ball, {
                     x: ball.velocity.x * scale,
@@ -377,6 +386,7 @@ export class PachinkoPhysicsEngine {
         this.ballInMonitorZone.clear();
         this.stopperCooldown.clear();
         this.lowSpeedSince.clear();
+        this.launchPhaseBalls.clear();
         this.monitorEnterListeners.clear();
         this.monitorLeaveListeners.clear();
         this.pegManager.clear();
