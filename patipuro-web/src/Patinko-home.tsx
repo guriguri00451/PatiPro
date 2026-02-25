@@ -384,6 +384,7 @@ useEffect(() => {
     // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+            {/* DEBUG用 */}
             <button 
                 onClick={() => setIsRushOpen(true)}
                 style={{
@@ -402,6 +403,7 @@ useEffect(() => {
             >
                 🔥 ラッシュテスト起動 🔥
             </button>
+            {/* DEBUG用 */}
             <div style={{ position: 'relative' }}>
                 <div style={{ 
                     color: 'white', 

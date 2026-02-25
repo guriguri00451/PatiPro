@@ -130,6 +130,7 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
           key={spinKey}
           src={currentSrc}
           autoPlay
+          muted
           playsInline
           onEnded={handleVideoEnded}
           style={{
