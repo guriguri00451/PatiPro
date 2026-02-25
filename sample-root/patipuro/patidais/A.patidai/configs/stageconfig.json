@@ -1,0 +1,16 @@
+{
+  "rush": {
+    "reachMoviePaths": [
+      "../../assets/movies/reach_01.mp4",
+      "../../assets/movies/reach_02.mp4",
+      "../../assets/movies/reach_03.mp4"
+    ],
+    "successMoviePaths": [
+      "../../assets/movies/success_01.mp4" 
+    ],
+    "failureMoviePaths": [
+      "../../assets/movies/fail_01.mp4",
+      "../../assets/movies/fail_02.mp4"
+    ]
+  }
+}

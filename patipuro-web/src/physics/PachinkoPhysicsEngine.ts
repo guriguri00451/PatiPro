@@ -1,5 +1,6 @@
 import Matter from 'matter-js';
 import { PegStateManager } from './PegStateManager';
+import { HesoManager } from './HesoManager';
 import { PHYSICS_CONFIG, DebugInfo } from './types';
 
 /**
@@ -8,6 +9,7 @@ import { PHYSICS_CONFIG, DebugInfo } from './types';
 export class PachinkoPhysicsEngine {
     private engine: Matter.Engine;
     private pegManager: PegStateManager;
+    private hesoManager: HesoManager;
     private balls: Set<Matter.Body> = new Set();
     private monitorSensorIds: Set<number> = new Set();
     private ballInMonitorZone: Set<number> = new Set();
@@ -25,7 +27,7 @@ export class PachinkoPhysicsEngine {
     private readonly WIN_ENTRY_TARGET = { x: 92, y: 172 };
     private readonly LOSE_ENTRY_TARGET = { x: 212, y: 116 };
 
-    constructor() {
+    constructor(onHesoEntered?: (ball: Matter.Body) => void) {
         this.engine = Matter.Engine.create();
         
         // すり抜け防止のための設定（より厳密に）
@@ -33,6 +35,7 @@ export class PachinkoPhysicsEngine {
         this.engine.velocityIterations = 10;  // デフォルト4→10
 
         this.pegManager = new PegStateManager(this.engine);
+        this.hesoManager = new HesoManager(onHesoEntered ?? (() => {}));
     }
 
     /**
@@ -74,6 +77,10 @@ export class PachinkoPhysicsEngine {
         return () => {
             this.monitorLeaveListeners.delete(listener);
         };
+     * へそ管理マネージャーを取得
+     */
+    getHesoManager(): HesoManager {
+        return this.hesoManager;
     }
 
     /**
@@ -170,7 +177,7 @@ export class PachinkoPhysicsEngine {
             return;
         }
 
-        // 各玉について、近くの釘をチェック + 速度制限
+        // 各玉について、近くの釘をチェック + 速度制限 + へそ判定
         const maxSpeed = 12; // すり抜け防止のための最大速度
         this.balls.forEach((ball) => {
             this.pegManager.updateProximity(ball.position);
@@ -202,6 +209,10 @@ export class PachinkoPhysicsEngine {
                 this.lowSpeedSince.delete(ball.id);
             }
         });
+
+        // へそに入った玉を検知して削除
+        const hesoEntered = this.hesoManager.checkBalls(this.balls);
+        hesoEntered.forEach((ball) => this.removeBall(ball));
     }
 
     /**

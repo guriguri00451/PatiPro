@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
+import { RushMode } from './components/RushMode';
 
 const { BOARD_WIDTH, BOARD_HEIGHT } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
+const RUSH_MAX_SPINS = 10;
 
 const Pachinko: React.FC = () => {
     // TypeScriptの型指定: HTMLDivElement | null
@@ -14,16 +16,21 @@ const Pachinko: React.FC = () => {
     // 物理エンジン（物理演算担当のクラス）
     const physicsEngineRef = useRef<PachinkoPhysicsEngine>(new PachinkoPhysicsEngine());
     // デバッグモード
-    const [debugMode, setDebugMode] = React.useState(false);
+    const [debugMode, setDebugMode] = useState(false);
     // デバッグ描画用のCanvas
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
     // 連続発射用
     const isShootingRef = useRef(false);
     const shootIntervalRef = useRef<number | null>(null);
+    const [launchPower, setLaunchPower] = useState<number>(LAUNCH_POWER_MAX);
+    const launchPowerRef = useRef<number>(LAUNCH_POWER_MAX);
     // デバッグ情報表示用
-    const [fps, setFps] = React.useState(0);
-    const [ballCount, setBallCount] = React.useState(0);
-
+    const [fps, setFps] = useState(0);
+    const [ballCount, setBallCount] = useState(0);
+    const [activePegCount, setActivePegCount] = useState(0);
+    const [totalPegCount, setTotalPegCount] = useState(0);
+    
+    const [isRushOpen, setIsRushOpen] = useState(false);
     useEffect(() => {
         if (!sceneRef.current) return;
 
@@ -126,7 +133,22 @@ const Pachinko: React.FC = () => {
             debugCanvasRef.current = canvas;
         }
 
-        // 4. WebSocketクライアント（サーバーなしでもクラッシュしない）
+        // 4. VS Code 拡張機能からの postMessage（Webview iframe 経由）
+        const handlePostMessage = (event: MessageEvent) => {
+            const msg = event.data;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.type === 'keypress') {
+                shootBallRef.current();
+            } else if (msg.type === 'burst' && typeof msg.count === 'number') {
+                const count = Math.min(Math.max(1, msg.count), 50);
+                for (let i = 0; i < count; i++) {
+                    setTimeout(() => shootBallRef.current(), i * 80);
+                }
+            }
+        };
+        window.addEventListener('message', handlePostMessage);
+
+        // 5. WebSocketクライアント（別クライアント間の keypress 共有用）
         let ws: WebSocket | null = null;
         const connectWS = () => {
             ws = new WebSocket(WS_URL);
@@ -140,6 +162,11 @@ const Pachinko: React.FC = () => {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'keypress') {
                         shootBallRef.current();
+                    } else if (msg.type === 'burst' && typeof msg.count === 'number') {
+                        const count = Math.min(Math.max(1, msg.count), 50);
+                        for (let i = 0; i < count; i++) {
+                            setTimeout(() => shootBallRef.current(), i * 80);
+                        }
                     }
                 } catch {
                     // ignore
@@ -160,6 +187,7 @@ const Pachinko: React.FC = () => {
 
         // クリーンアップ
         return () => {
+            window.removeEventListener('message', handlePostMessage);
             window.removeEventListener('mousedown', handleMouseDown);
             window.removeEventListener('mouseup', handleMouseUp);
             window.removeEventListener('keydown', handleKeyDown);
@@ -268,9 +296,41 @@ useEffect(() => {
 
     // shootBall の参照を常に最新に保つ
     shootBallRef.current = shootBall;
-
+    // ---仮置きしてます。動画再生できるようになったら、消してください---
+    const testMoviePaths = {
+        reach: [
+            "https://www.w3schools.com/html/mov_bbb.mp4",
+        ],
+        success: [
+            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" 
+        ],
+        failure: [
+            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4" 
+        ]
+    };
+    // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+            {/* DEBUG用 */}
+            <button 
+                onClick={() => setIsRushOpen(true)}
+                style={{
+                    position: 'absolute',
+                    top: 20,
+                    right: 20,
+                    zIndex: 200, // ラッシュ画面より上に表示（テスト用）
+                    padding: '10px 20px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    background: '#ff0055',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px'
+                }}
+            >
+                🔥 ラッシュテスト起動 🔥
+            </button>
+            {/* DEBUG用 */}
             <div style={{ position: 'relative' }}>
                 <div style={{ 
                     color: 'white', 
@@ -335,6 +395,15 @@ useEffect(() => {
                     </div>
                 </div>
             )}
+            <RushMode
+                isOpen={isRushOpen}
+                maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
+                moviePaths={testMoviePaths}
+                onRushEnd={() => {
+                    console.log("ラッシュ終了！");
+                    setIsRushOpen(false); // 終了したら画面を閉じる
+                }}
+            />
         </div>
     );
 };
