@@ -228,6 +228,15 @@ export class PachinkoPhysicsEngine {
             }
         });
 
+        // 発射レーン底部に溜まった玉を削除（上向きに動いていない玉のみ）
+        const laneStragglers: Matter.Body[] = [];
+        this.balls.forEach((ball) => {
+            if (ball.position.x < 30 && ball.position.y > 555 && ball.velocity.y > -1) {
+                laneStragglers.push(ball);
+            }
+        });
+        laneStragglers.forEach((ball) => this.removeBall(ball));
+
         // へそに入った玉を検知して削除
         const hesoEntered = this.hesoManager.checkBalls(this.balls);
         hesoEntered.forEach((ball) => this.removeBall(ball));
