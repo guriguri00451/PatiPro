@@ -3,6 +3,7 @@ import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 import Pachinko from './Patinko-home'; // さっき作ったコンポーネント
+import { SlotMachine } from './components/SlotMachine';
 
 function App() {
   const [count, setCount] = useState(0)
@@ -38,12 +39,17 @@ function App() {
       
       {/* <a>タグをボタンのように扱い、クリックでステートを切り替える */}
       <div style={{ margin: '20px' }}>
-        <button 
+        <button
           onClick={() => setIsGameStarted(true)}
           style={{ fontSize: '1.5rem', color: '#646cff', cursor: 'pointer' }}
         >
           ここからパチンコを始める
         </button>
+      </div>
+
+      {/* SlotMachine 動作確認 */}
+      <div style={{ margin: '40px auto', display: 'flex', justifyContent: 'center' }}>
+        <SlotMachine onResult={(result, isWin) => console.log('SlotResult:', result, isWin)} />
       </div>
 
       <div className="card">
