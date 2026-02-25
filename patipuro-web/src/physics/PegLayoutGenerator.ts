@@ -47,7 +47,7 @@ export class PegLayoutGenerator {
         }));
 
         // 液晶の下を通ってヘソに向かう左側のレール
-        bodies.push(this.createWall(Bodies, 120, 420, 140, 8, 0.35));
+        bodies.push(this.createGuidanceRail(Bodies, 120, 420, 140, 8, 0.35));
 
         // =========================================================
         // 4. 右側の縦ルートと、ヘソへ向かう斜めレール
@@ -55,7 +55,7 @@ export class PegLayoutGenerator {
         // 液晶の右側に沿う縦壁
         bodies.push(this.createWall(Bodies, 315, 260, 200, 8, Math.PI / 2));
         // 液晶の下を通ってヘソに向かう右側のレール
-        bodies.push(this.createWall(Bodies, 280, 420, 140, 8, -0.35));
+        bodies.push(this.createGuidanceRail(Bodies, 280, 420, 140, 8, -0.35));
 
         // =========================================================
         // 5. ヘソ（スタートチャッカー：図の「U」字部分）
@@ -102,6 +102,23 @@ export class PegLayoutGenerator {
     }
 
     // --- ビルダーメソッド群 ---
+
+    private static createGuidanceRail(
+        Bodies: typeof Matter.Bodies,
+        x: number, y: number, w: number, h: number, angle: number
+    ): Matter.Body {
+        return Bodies.rectangle(x, y, w, h, {
+            isStatic: true,
+            label: 'guidance-rail',
+            angle: angle,
+            restitution: 0.02,
+            friction: 0.05,
+            frictionStatic: 0.01,
+            slop: 0.005,
+            chamfer: { radius: Math.min(w, h) / 2 },
+            render: { fillStyle: '#888888' }
+        });
+    }
 
     private static createWall(
         Bodies: typeof Matter.Bodies,
