@@ -117,7 +117,7 @@ export class PachinkoPhysicsEngine {
         });
 
         // 下から上へ打ち出し（レーンに沿って上昇し、天井カーブで右へ）
-        const speed = 18;
+        const speed = 18 + Math.random() * 2;
         const dirX = 0.02;
         const dirY = -1.0;
 
