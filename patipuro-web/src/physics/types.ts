@@ -10,7 +10,20 @@ export const PHYSICS_CONFIG = {
     PEG_LEAVE_THRESHOLD: 28,      // 玉が離れたと判定する距離
     LAUNCH_POWER_MIN: 12,
     LAUNCH_POWER_MAX: 30,
+    // へそ（玉が入る穴）の設定
+    HESO_X: 196,
+    HESO_Y: 252,
+    HESO_RADIUS: 25,
 } as const;
+
+/**
+ * へそ（玉が入る穴）の設定
+ */
+export interface HesoConfig {
+    x: number;
+    y: number;
+    radius: number;
+}
 
 /**
  * 釘の状態を管理する型定義
