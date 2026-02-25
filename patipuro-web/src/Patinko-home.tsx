@@ -3,7 +3,7 @@ import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 import { RushMode } from './components/RushMode';
 
-const { BOARD_WIDTH, BOARD_HEIGHT } = PHYSICS_CONFIG;
+const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
 const RUSH_MAX_SPINS = 10;

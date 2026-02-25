@@ -77,6 +77,8 @@ export class PachinkoPhysicsEngine {
         return () => {
             this.monitorLeaveListeners.delete(listener);
         };
+    }
+    /**
      * へそ管理マネージャーを取得
      */
     getHesoManager(): HesoManager {
