@@ -1,98 +1,143 @@
 import Matter from 'matter-js';
 
-/**
- * リアルなパチンコ盤の釘配置を生成（物理演算担当）
- */
 export class PegLayoutGenerator {
-    private static readonly PEG_RADIUS = 2.6;
+    private static readonly MICRO_PEG_RADIUS = 1.5;
+    private static readonly PEG_RADIUS = 2.6; // 右下の釘用
 
-    /**
-     * 実際のパチンコ風の釘を生成
-     */
+    // センター液晶（図に合わせて配置）
+    private static readonly CENTER_MONITOR = {
+        centerX: 200,
+        centerY: 240,
+        width: 220,
+        height: 180
+    } as const;
+
+    static getCenterMonitorArea() { return this.CENTER_MONITOR; }
+
     static generateRealisticPegs(Bodies: typeof Matter.Bodies): Matter.Body[] {
-        const pegs: Matter.Body[] = [];
-        type PegPoint = { x: number; y: number };
-        type PegRowSpec = {
-            y: number;
-            xStart: number;
-            count: number;
-            step?: number;
-            skipIndices?: number[];
-        };
+        const bodies: Matter.Body[] = [];
+        type Point = { x: number; y: number };
 
-        // 1) 個別に調整したい点（ここを直接いじるだけでOK）
-        const customPegs: PegPoint[] = [];
+        // =========================================================
+        // 1. 左上の玉の出口（図面の矢印部分）
+        // =========================================================
+        // 左の打ち出しレールから上がってきた玉を、右下へ放出するカーブ
+        bodies.push(this.createWall(Bodies, 25, 100, 40, 8, 0.8)); 
 
-        // 2) メイン面の段構成（xStart / count / step / skipIndices を編集）
-        const rowSpecs: PegRowSpec[] = [
-            { y: 170, xStart: 92, count: 8, step: 32 },
-            { y: 202, xStart: 76, count: 8, step: 32 },
-            { y: 236, xStart: 92, count: 8, step: 32, skipIndices: [3, 4] },
-            { y: 268, xStart: 76, count: 8, step: 32 },
-            { y: 302, xStart: 92, count: 7, step: 32 },
-            { y: 334, xStart: 76, count: 8, step: 32 },
-            { y: 368, xStart: 92, count: 7, step: 32 },
-            { y: 402, xStart: 76, count: 8, step: 32 },
-            { y: 438, xStart: 96, count: 6, step: 34 },
-            { y: 472, xStart: 82, count: 7, step: 36 }
-        ];
+        // =========================================================
+        // 2. 左側の縦ルート（液晶の左に沿って落ちる道）
+        // =========================================================
+        // 外側の縦壁
+        bodies.push(this.createWall(Bodies, 45, 250, 180, 8, Math.PI / 2));
+        // 内側の縦壁（液晶の左端に沿う）
+        bodies.push(this.createWall(Bodies, 85, 260, 200, 8, Math.PI / 2));
+        // 左上から縦ルートへの誘導壁
+        bodies.push(this.createWall(Bodies, 65, 150, 60, 8, Math.PI / 4));
 
-        // 3) サイド道釘（ジグザグ列。値を変えると一気に調整可）
-        const leftGuidePegs = this.buildZigzagColumns(34, 52, 166, 32, 16, 10);
-        const rightGuidePegs = this.buildZigzagColumns(332, 316, 172, 34, 16, 9);
+        // =========================================================
+        // 3. 左下：風車と、ヘソへ向かう斜めレール
+        // =========================================================
+        // 風車（図の左下にあるお花/歯車マークを八角形で表現）
+        bodies.push(Bodies.polygon(40, 370, 8, 14, {
+            isStatic: true, // ←現在は「固定」されています
+            restitution: 0.2,
+            friction: 0.01,
+            frictionStatic: 0.0,
+            render: { fillStyle: '#ffcc00' } // 黄色い風車
+        }));
 
-        const rowPegs = this.expandRowSpecs(rowSpecs);
+        // 液晶の下を通ってヘソに向かう左側のレール
+        bodies.push(this.createWall(Bodies, 120, 420, 140, 8, 0.35));
 
-        [...customPegs, ...rowPegs, ...leftGuidePegs, ...rightGuidePegs].forEach(({ x, y }) => {
-            pegs.push(this.createPeg(Bodies, x, y));
-        });
+        // =========================================================
+        // 4. 右側の縦ルートと、ヘソへ向かう斜めレール
+        // =========================================================
+        // 液晶の右側に沿う縦壁
+        bodies.push(this.createWall(Bodies, 315, 260, 200, 8, Math.PI / 2));
+        // 液晶の下を通ってヘソに向かう右側のレール
+        bodies.push(this.createWall(Bodies, 280, 420, 140, 8, -0.35));
 
-        return pegs;
-    }
-    
-    /**
-     * 釘を作成
-     */
-    private static createPeg(Bodies: typeof Matter.Bodies, x: number, y: number): Matter.Body {
-        return Bodies.circle(x, y, this.PEG_RADIUS, {
-            isStatic: true,
-            restitution: 0.8,
-            slop: 0.005, // より厳密に
-            render: { fillStyle: '#ffcc00' }
-        });
-    }
+        // =========================================================
+        // 5. ヘソ（スタートチャッカー：図の「U」字部分）
+        // =========================================================
+        const hesoY = 480;
+        const hesoCenterX = 200;
+        const hesoWidth = 28;
+        bodies.push(this.createWall(Bodies, hesoCenterX - hesoWidth / 2, hesoY, 8, 30, 0)); // 左壁
+        bodies.push(this.createWall(Bodies, hesoCenterX + hesoWidth / 2, hesoY, 8, 30, 0)); // 右壁
 
-    private static expandRowSpecs(
-        rowSpecs: Array<{ y: number; xStart: number; count: number; step?: number; skipIndices?: number[] }>
-    ): Array<{ x: number; y: number }> {
-        const points: Array<{ x: number; y: number }> = [];
-
-        rowSpecs.forEach(({ y, xStart, count, step = 32, skipIndices = [] }) => {
-            for (let index = 0; index < count; index++) {
-                if (skipIndices.includes(index)) continue;
-                points.push({ x: xStart + index * step, y });
-            }
-        });
-
-        return points;
-    }
-
-    private static buildZigzagColumns(
-        xA: number,
-        xB: number,
-        yStart: number,
-        rowStep: number,
-        offset: number,
-        rows: number
-    ): Array<{ x: number; y: number }> {
-        const points: Array<{ x: number; y: number }> = [];
-
-        for (let row = 0; row < rows; row++) {
-            const y = yStart + row * rowStep;
-            points.push({ x: xA, y });
-            points.push({ x: xB, y: y + offset });
+        // =========================================================
+        // 6. 右下の釘（図面の「oooo」の部分）
+        // =========================================================
+        const kugiStartX = 250;
+        const kugiStartY = 490;
+        for (let i = 0; i < 4; i++) {
+            bodies.push(Bodies.circle(kugiStartX + i * 12, kugiStartY - i * 10, this.PEG_RADIUS, {
+                isStatic: true,
+                restitution: 0.6,
+                render: { fillStyle: '#d4af37' } // ゴールド色
+            }));
         }
 
-        return points;
+        // =========================================================
+        // 7. 外枠（ドームと打ち出しレール）
+        // =========================================================
+        const outerRailPoints: Point[] = [];
+        for (let y = 600; y >= 120; y -= 8) outerRailPoints.push({ x: 5, y }); // 大外の左壁
+        for (let y = 600; y >= 200; y -= 8) outerRailPoints.push({ x: 25, y }); // 打ち出し用の内壁
+        
+        for (let a = Math.PI; a >= 0; a -= 0.04) { // 天井ドーム
+            outerRailPoints.push({
+                x: 200 + 195 * Math.cos(a),
+                y: 190 - 180 * Math.sin(a) 
+            });
+        }
+        for (let y = 190; y <= 600; y += 8) outerRailPoints.push({ x: 395, y }); // 大外の右壁
+        outerRailPoints.forEach(p => bodies.push(this.createMicroWallPeg(Bodies, p.x, p.y)));
+
+        // 液晶センサー
+        bodies.push(this.createCenterMonitorSensor(Bodies));
+
+        return bodies;
+    }
+
+    // --- ビルダーメソッド群 ---
+
+    private static createWall(
+        Bodies: typeof Matter.Bodies,
+        x: number, y: number, w: number, h: number, angle: number
+    ): Matter.Body {
+        return Bodies.rectangle(x, y, w, h, {
+            isStatic: true,
+            label: 'rail-wall',
+            angle: angle,
+            restitution: 0.05,
+            friction: 0.0,
+            frictionStatic: 0.0,
+            slop: 0.02,
+            chamfer: { radius: Math.min(w, h) / 2 }, 
+            render: { fillStyle: '#888888' }
+        });
+    }
+
+    private static createMicroWallPeg(Bodies: typeof Matter.Bodies, x: number, y: number): Matter.Body {
+        return Bodies.circle(x, y, this.MICRO_PEG_RADIUS * 1.2, {
+            isStatic: true,
+            label: 'outer-wall',
+            restitution: 0.08,
+            friction: 0.01,
+            frictionStatic: 0.0,
+            slop: 0.02,
+            render: { fillStyle: '#e0e0e0' }
+        });
+    }
+
+    static createCenterMonitorSensor(Bodies: typeof Matter.Bodies): Matter.Body {
+        return Bodies.rectangle(this.CENTER_MONITOR.centerX, this.CENTER_MONITOR.centerY, this.CENTER_MONITOR.width, this.CENTER_MONITOR.height, {
+            isStatic: true,
+            isSensor: true,
+            label: 'center-monitor-zone',
+            render: { visible: false } 
+        });
     }
 }

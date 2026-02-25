@@ -11,12 +11,21 @@ export class PachinkoPhysicsEngine {
     private pegManager: PegStateManager;
     private hesoManager: HesoManager;
     private balls: Set<Matter.Body> = new Set();
+    private monitorSensorIds: Set<number> = new Set();
+    private ballInMonitorZone: Set<number> = new Set();
+    private monitorEnterListeners: Set<(ball: Matter.Body) => void> = new Set();
+    private monitorLeaveListeners: Set<(ball: Matter.Body) => void> = new Set();
     private fps: number = 0;
     private lastTime: number = Date.now();
     private frameCount: number = 0;
     private collisionThisFrame: Set<string> = new Set(); // 同一フレーム内の重複衝突防止
     private lastCollisionTime: Map<string, number> = new Map(); // 各ペアの最後の衝突時刻
     private readonly COLLISION_COOLDOWN = 100; // 同じペアは100ms間隔でのみ疲労適用
+    private stopperCooldown: Map<number, number> = new Map();
+    private lowSpeedSince: Map<number, number> = new Map();
+    private readonly WIN_RAIL_PROBABILITY = 0.5;
+    private readonly WIN_ENTRY_TARGET = { x: 92, y: 172 };
+    private readonly LOSE_ENTRY_TARGET = { x: 212, y: 116 };
 
     constructor(onHesoEntered?: (ball: Matter.Body) => void) {
         this.engine = Matter.Engine.create();
@@ -44,6 +53,32 @@ export class PachinkoPhysicsEngine {
     }
 
     /**
+     * モニター演出ゾーン（センサー）を登録
+     */
+    registerMonitorSensor(sensorBody: Matter.Body): void {
+        this.monitorSensorIds.add(sensorBody.id);
+    }
+
+    /**
+     * モニターゾーン侵入時のイベント購読
+     */
+    onMonitorZoneEnter(listener: (ball: Matter.Body) => void): () => void {
+        this.monitorEnterListeners.add(listener);
+        return () => {
+            this.monitorEnterListeners.delete(listener);
+        };
+    }
+
+    /**
+     * モニターゾーン離脱時のイベント購読
+     */
+    onMonitorZoneLeave(listener: (ball: Matter.Body) => void): () => void {
+        this.monitorLeaveListeners.add(listener);
+        return () => {
+            this.monitorLeaveListeners.delete(listener);
+        };
+    }
+    /**
      * へそ管理マネージャーを取得
      */
     getHesoManager(): HesoManager {
@@ -53,12 +88,12 @@ export class PachinkoPhysicsEngine {
     /**
      * 玉を発射（実際のパチンコ風）
      */
-    shootBall(launchPower: number): Matter.Body {
+    shootBall(): Matter.Body {
         const { Bodies, Body, Composite } = Matter;
 
-        // 発射位置：左上
-        const launchX = 56;
-        const launchY = 82;
+        // 発射位置：左上（短距離でネズミ返しに当たる位置）
+        const launchX = 26;
+        const launchY = 150;
 
         const ball = Bodies.circle(launchX, launchY, 5.2, {
             restitution: 0.5,
@@ -73,15 +108,10 @@ export class PachinkoPhysicsEngine {
             }
         });
 
-        // 左上から盤面へ斜めに流し込む（発射力の差を出しやすい補間）
-        const launchRange = PHYSICS_CONFIG.LAUNCH_POWER_MAX - PHYSICS_CONFIG.LAUNCH_POWER_MIN;
-        const powerRatio = launchRange > 0
-            ? (launchPower - PHYSICS_CONFIG.LAUNCH_POWER_MIN) / launchRange
-            : 0;
-        const clampedPowerRatio = Math.max(0, Math.min(1, powerRatio));
-        const speed = 5.2 + clampedPowerRatio * 5.8; // 5.2〜11.0
-        const dirX = 0.82;
-        const dirY = 0.57;
+        // 固定の打ち出し初速（強めに打ち出し、ネズミ返しでランダム分岐）
+        const speed = 12.6;
+        const dirX = 0.9;
+        const dirY = -0.42;
 
         Body.setVelocity(ball, { x: speed * dirX, y: speed * dirY });
         Composite.add(this.engine.world, ball);
@@ -111,6 +141,9 @@ export class PachinkoPhysicsEngine {
         if (this.balls.has(ball)) {
             Matter.Composite.remove(this.engine.world, ball);
             this.balls.delete(ball);
+            this.ballInMonitorZone.delete(ball.id);
+            this.stopperCooldown.delete(ball.id);
+            this.lowSpeedSince.delete(ball.id);
             
             // この球に関連する衝突時刻レコードをクリーンアップ
             const ballId = ball.id;
@@ -160,6 +193,23 @@ export class PachinkoPhysicsEngine {
                     y: ball.velocity.y * scale
                 });
             }
+
+            // 棒上で停滞した玉を軽く再加速
+            const now = Date.now();
+            if (speed < 0.32) {
+                const stalledSince = this.lowSpeedSince.get(ball.id) ?? now;
+                this.lowSpeedSince.set(ball.id, stalledSince);
+
+                if (now - stalledSince > 260) {
+                    Matter.Body.setVelocity(ball, {
+                        x: ball.velocity.x + (Math.random() - 0.5) * 0.8,
+                        y: ball.velocity.y + 1.6
+                    });
+                    this.lowSpeedSince.set(ball.id, now);
+                }
+            } else {
+                this.lowSpeedSince.delete(ball.id);
+            }
         });
 
         // へそに入った玉を検知して削除
@@ -172,6 +222,21 @@ export class PachinkoPhysicsEngine {
      */
     handleCollision(pair: Matter.Pair): void {
         const { bodyA, bodyB } = pair;
+
+        const stopperBall = this.getStopperCollisionBall(bodyA, bodyB);
+        if (stopperBall) {
+            this.applyNezumiGaeshiRandomDrop(stopperBall);
+        }
+
+        const monitorZoneBody = this.getMonitorZoneBody(bodyA, bodyB);
+        if (monitorZoneBody) {
+            const ball = monitorZoneBody;
+            if (!this.ballInMonitorZone.has(ball.id)) {
+                this.ballInMonitorZone.add(ball.id);
+                this.monitorEnterListeners.forEach((listener) => listener(ball));
+            }
+            return;
+        }
 
         // どちらかが玉で、もう一方が釘かチェック
         let ball: Matter.Body | null = null;
@@ -217,6 +282,67 @@ export class PachinkoPhysicsEngine {
     }
 
     /**
+     * 衝突終了イベントを処理
+     */
+    handleCollisionEnd(pair: Matter.Pair): void {
+        const { bodyA, bodyB } = pair;
+        const monitorZoneBody = this.getMonitorZoneBody(bodyA, bodyB);
+        if (!monitorZoneBody) return;
+
+        const ball = monitorZoneBody;
+        if (this.ballInMonitorZone.has(ball.id)) {
+            this.ballInMonitorZone.delete(ball.id);
+            this.monitorLeaveListeners.forEach((listener) => listener(ball));
+        }
+    }
+
+    private getMonitorZoneBody(bodyA: Matter.Body, bodyB: Matter.Body): Matter.Body | null {
+        if (this.balls.has(bodyA) && this.monitorSensorIds.has(bodyB.id)) {
+            return bodyA;
+        }
+        if (this.balls.has(bodyB) && this.monitorSensorIds.has(bodyA.id)) {
+            return bodyB;
+        }
+        return null;
+    }
+
+    private getStopperCollisionBall(bodyA: Matter.Body, bodyB: Matter.Body): Matter.Body | null {
+        const isBodyAStopper = bodyA.label === 'nezumi-gaeshi';
+        const isBodyBStopper = bodyB.label === 'nezumi-gaeshi';
+
+        if (isBodyAStopper && this.balls.has(bodyB)) return bodyB;
+        if (isBodyBStopper && this.balls.has(bodyA)) return bodyA;
+        return null;
+    }
+
+    private applyNezumiGaeshiRandomDrop(ball: Matter.Body): void {
+        const now = Date.now();
+        const last = this.stopperCooldown.get(ball.id) ?? 0;
+        if (now - last < 120) return;
+
+        const goWinRail = Math.random() < this.WIN_RAIL_PROBABILITY;
+        const target = goWinRail ? this.WIN_ENTRY_TARGET : this.LOSE_ENTRY_TARGET;
+
+        const dx = target.x - ball.position.x;
+        const dy = target.y - ball.position.y;
+        const length = Math.sqrt(dx * dx + dy * dy) || 1;
+        const nx = dx / length;
+        const ny = dy / length;
+
+        const baseSpeed = goWinRail ? 8.8 : 9.5;
+        const speedJitter = 0.85 + Math.random() * 0.35;
+        const jitterX = (Math.random() - 0.5) * (goWinRail ? 1.3 : 1.8);
+        const jitterY = (Math.random() - 0.5) * 0.9;
+
+        Matter.Body.setVelocity(ball, {
+            x: nx * baseSpeed * speedJitter + jitterX,
+            y: ny * baseSpeed * speedJitter + jitterY
+        });
+
+        this.stopperCooldown.set(ball.id, now);
+    }
+
+    /**
      * デバッグ情報を取得
      */
     getDebugInfo(): DebugInfo {
@@ -240,6 +366,12 @@ export class PachinkoPhysicsEngine {
      */
     clear(): void {
         this.balls.clear();
+        this.monitorSensorIds.clear();
+        this.ballInMonitorZone.clear();
+        this.stopperCooldown.clear();
+        this.lowSpeedSince.clear();
+        this.monitorEnterListeners.clear();
+        this.monitorLeaveListeners.clear();
         this.pegManager.clear();
         Matter.Engine.clear(this.engine);
     }
