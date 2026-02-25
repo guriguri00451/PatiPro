@@ -1,22 +1,14 @@
 {
   "bgm": {
     "normal": [
-      "../../assets/bgm/bgm_normal_01.mp3",
-      "../../assets/bgm/bgm_normal_02.mp3"
+      "assets/bgm/bgm_normal_01.mp3"
     ]
   },
   "rush": {
-    "reachMoviePaths": [
-      "../../assets/movies/reach_01.mp4",
-      "../../assets/movies/reach_02.mp4",
-      "../../assets/movies/reach_03.mp4"
-    ],
-    "successMoviePaths": [
-      "../../assets/movies/success_01.mp4"
-    ],
-    "failureMoviePaths": [
-      "../../assets/movies/fail_01.mp4",
-      "../../assets/movies/fail_02.mp4"
-    ]
+    "movieDirs": {
+      "reach":   "assets/movies/reach/",
+      "success": "assets/movies/success/",
+      "fail":    "assets/movies/fail/"
+    }
   }
 }

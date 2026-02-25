@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // ---- 確率定数（後で微調整可能） ----
-const PROB_SUCCESS = 0.010; // 約1/99 ラッシュ中の当たり確率
+const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
 const PROB_REACH   = 0.100; // 10%  ハズレのうちリーチ演出に発展する確率
 
 // ---- 型定義 ----
@@ -46,6 +46,7 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
   const maxSpinsRef         = useRef(maxSpins);
   const onRushEndRef        = useRef(onRushEnd);
   const moviePathsRef       = useRef(moviePaths);
+  const videoRef            = useRef<HTMLVideoElement>(null);
 
   // Props変化を即座にRefへ反映
   useEffect(() => { onRushEndRef.current  = onRushEnd;   }, [onRushEnd]);
@@ -62,8 +63,19 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       result === 'reach'   ? moviePathsRef.current.reach   :
                              moviePathsRef.current.failure;
 
+    // 動画なし（ファイルが空・未設定）→ 失敗扱いで次のスピンへ即進む
     const src = pickRandom(paths);
-    if (!src) return;
+    if (!src) {
+      const next = remainingSpinsRef.current - 1;
+      remainingSpinsRef.current = next;
+      setRemainingSpins(next);
+      if (next > 0) {
+        setTimeout(() => startSpin(), 0);
+      } else {
+        onRushEndRef.current();
+      }
+      return;
+    }
 
     setCurrentSrc(src);
     setSpinKey(k => k + 1);
@@ -139,10 +151,10 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       >
         {currentSrc && (
           <video
+            ref={videoRef}
             key={spinKey}
             src={currentSrc}
             autoPlay
-            muted
             playsInline
             onEnded={handleVideoEnded}
             style={{
