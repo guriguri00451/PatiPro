@@ -9,7 +9,7 @@ type Props = {
   compact?: boolean;
 };
 
-const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 const SPIN_INTERVAL_MS = 60;
 const STOP_TIMES = [1000, 2000, 3000];
 
