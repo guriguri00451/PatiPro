@@ -27,18 +27,37 @@ export async function loadPatidai(zipPath: string, context: vscode.ExtensionCont
     const zip = new AdmZip(zipPath);
     if (!fs.existsSync(extractPath)) {
         fs.mkdirSync(extractPath, { recursive: true });
+    } else {
+        // 前回の残骸を削除（重要：これをしないと前の台と混ざる可能性があります）
+        fs.rmSync(extractPath, { recursive: true, force: true });
+        fs.mkdirSync(extractPath, { recursive: true });
     }
     zip.extractAllTo(extractPath, true);
 
+    // ★ 追加：真のルートディレクトリ（configsがある場所）を特定する
+    let actualRoot = extractPath;
+    const topLevelItems = fs.readdirSync(extractPath).filter(item => 
+        item !== '__MACOSX' && !item.startsWith('.')
+    );
+
+    // 直下に configs がなく、かつフォルダが1つだけ存在する場合、その中をルートとみなす
+    if (!topLevelItems.includes('configs') && topLevelItems.length === 1) {
+        const potentialRoot = path.join(extractPath, topLevelItems[0]);
+        if (fs.statSync(potentialRoot).isDirectory()) {
+            actualRoot = potentialRoot;
+        }
+    }
+
     // 2. ユーティリティ：パス変換
     const toWebviewUri = (relPath: string) => {
-        const fullPath = path.join(extractPath, relPath);
+        const fullPath = path.join(actualRoot, relPath);
         return webview.asWebviewUri(vscode.Uri.file(fullPath)).toString();
     };
 
     // 3. assetsフォルダ内の全ファイルをURI辞書化
     const getAllAssetsUris = (dir: string): Record<string, string> => {
         let results: Record<string, string> = {};
+        const assetsDir = path.join(actualRoot, 'assets'); // actualRootベース
         if (!fs.existsSync(dir)) return results;
 
         const list = fs.readdirSync(dir);
@@ -47,7 +66,8 @@ export async function loadPatidai(zipPath: string, context: vscode.ExtensionCont
             if (fs.statSync(fullPath).isDirectory()) {
                 results = { ...results, ...getAllAssetsUris(fullPath) };
             } else {
-                const relToAssets = path.relative(path.join(extractPath, 'assets'), fullPath).replace(/\\/g, '/');
+                // キーを "images/Stage.png" のような形式にする
+                const relToAssets = path.relative(assetsDir, fullPath).replace(/\\/g, '/');
                 results[relToAssets] = webview.asWebviewUri(vscode.Uri.file(fullPath)).toString();
             }
         }
@@ -73,8 +93,8 @@ export async function loadPatidai(zipPath: string, context: vscode.ExtensionCont
 
     // 5. データの組み立て
     return {
-        stageConfig: JSON.parse(fs.readFileSync(path.join(extractPath, 'configs', 'stageconfig.json'), 'utf-8')),
-        assets: getAllAssetsUris(path.join(extractPath, 'assets')),
+        stageConfig: JSON.parse(fs.readFileSync(path.join(actualRoot, 'configs', 'stageconfig.json'), 'utf-8')),
+        assets: getAllAssetsUris(path.join(actualRoot, 'assets')),
         normalEffects: loadEffects('normal'),
         rushEffects: loadEffects('rush')
     };
