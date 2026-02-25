@@ -108,7 +108,6 @@ export class PachinkoPhysicsEngine {
             friction: 0.005,
             frictionAir: 0.001,  // 空気抵抗（すり抜け防止）
             slop: 0.005,  // より厳密に
-            inertia: Infinity,  // 回転慣性を大きくして安定化
             density: 0.004,  // 密度を上げて安定化
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
