@@ -89,7 +89,7 @@ export class PegLayoutGenerator {
         // 天井ドーム（棒セグメントの連結）
         bodies.push(this.createWallSegment(Bodies, 25, 600, 25, 200));
         // 天井ドーム（棒セグメントの連結）
-        const dome = this.createCurvedRail(Bodies, 5, 130, -60, 15, 40, 4);
+        const dome = this.createCurvedRail(Bodies, 5, 150, -65, 15, 40, 4);
         bodies.push(...dome);
         // 逆流弁
         const ben = this.createCurvedRail(Bodies, 220, 190, 100, 180, 40, 10);
@@ -103,7 +103,7 @@ export class PegLayoutGenerator {
         // ① 上部内側カーブ壁（右打ちルートの天井ガイド）
         // π*0.70 始まりにして左上の入口を広く取る
         // 天井ドーム（棒セグメントの連結）
-        const underDome = this.createCurvedRail(Bodies, 5, 130, -60, 15, 40, 4);
+        const underDome = this.createCurvedRail(Bodies, 5, 190, -65, 15, 40, 4);
         bodies.push(...underDome);
         // ② 右側チャンネル内壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 365, 190, 365, 440));
