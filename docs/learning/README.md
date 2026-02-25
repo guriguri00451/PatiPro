@@ -26,4 +26,4 @@
 | 定数を変更（サイズ・閾値） | `patipuro-web/src/physics/types.ts` |
 | WebSocket サーバーを変更 | `patipuro-server/server.js` |
 
-生成日時: 2026-02-24
+生成日時: 2026-02-25
