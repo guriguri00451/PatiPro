@@ -207,6 +207,134 @@ const leftGuidePegs = this.buildZigzagColumns(
 
 ---
 
+## 7. RushMode（ラッシュ演出）コンポーネント
+
+`RushMode.tsx` はパチンコの「大当たりラッシュ」を再現する液晶演出コンポーネントです。
+
+### 動作の仕組み
+
+```
+isOpen = true になる
+    ↓
+remainingSpins をリセット（maxSpins に戻す）
+    ↓
+startSpin() が呼ばれる
+    ↓
+lottery() で結果を抽選（success / reach / failure）
+    ↓
+結果に対応する動画 URL をランダム選択して <video> を再生
+    ↓
+動画が終了（onEnded）
+    ↓
+success → remainingSpins を MAX に戻して次のスピンへ
+failure/reach → remainingSpins を 1 減らす
+    ↓
+残り 0 になったら onRushEnd() コールバックを呼ぶ
+```
+
+### 確率定数
+
+```typescript
+// src/components/RushMode.tsx
+const PROB_SUCCESS = 0.010; // 約1/99 当たり確率
+const PROB_REACH   = 0.100; // 10%  リーチ演出に発展する確率
+// 残りはハズレ（= 1 - 0.010 - 0.100 = 89%）
+```
+
+### Props 定義
+
+```typescript
+type Props = {
+  isOpen: boolean;     // ラッシュ表示のON/OFF
+  maxSpins: number;    // 最大スピン回数（当たると復活）
+  moviePaths: {        // 演出ごとの動画URLリスト
+    reach: string[];
+    success: string[];
+    failure: string[];
+  };
+  onRushEnd: () => void; // ラッシュ終了コールバック
+};
+```
+
+### 古いクロージャ問題を避ける Ref パターン
+
+コールバック（`onEnded`）は初回レンダーで登録されるため、最新の props を `useRef` 経由で参照しています。
+
+```typescript
+const onRushEndRef = useRef(onRushEnd);
+useEffect(() => { onRushEndRef.current = onRushEnd; }, [onRushEnd]);
+
+// onEnded ハンドラ内では Ref 経由で呼ぶ（古いクロージャを避ける）
+onRushEndRef.current();
+```
+
+### 現在の仮実装について
+
+`Patinko-home.tsx` に仮の動画 URL が直書きされています（`testMoviePaths`）。
+将来は `.pati` ファイル（演出パッケージ）から動画を読み込む予定です。
+
+```typescript
+// 仮置き（将来は削除予定）
+const testMoviePaths = {
+    reach: ["https://www.w3schools.com/html/mov_bbb.mp4"],
+    success: ["..."],
+    failure: ["..."]
+};
+```
+
+---
+
+## 8. 演出システム（.pati ファイル）— 将来の仕様
+
+`EffectRule.md` に記述されている将来の演出パッケージ仕様です。現在は未実装ですが、設計理解に重要です。
+
+### .pati ファイルの構造
+
+```
+example.pati (ZIP形式)
+├── config.json      # 演出の全定義（抽選テーブル・シーケンス）
+└── assets/
+    ├── movies/      # mp4
+    ├── images/      # png, jpg, svg
+    └── sounds/      # mp3, wav
+```
+
+### config.json の主要フィールド
+
+```json
+{
+  "lottery": {
+    "probability": 0.003,
+    "patterns": [
+      { "id": "pattern_01", "weight": 10, "is_win": true, "sequence_id": "seq_reach_01" }
+    ]
+  },
+  "sequences": [
+    {
+      "id": "seq_reach_01",
+      "total_duration": 15000,
+      "layers": [
+        { "type": "video", "resource_id": "vid_reach_01", "start_time": 0, "stop_time": 5000 },
+        { "type": "slot",  "resource_id": "slot_01",     "start_time": 0 }
+      ]
+    }
+  ]
+}
+```
+
+### ID 解決フロー（なぜ直接パスを使わないか）
+
+VS Code Webview のセキュリティ制限により、ローカルファイルパスを React に直接渡せません。
+
+```
+1. 拡張機能が起動時に .pati（ZIP）を展開
+2. asWebviewUri() でファイルパスを Webview 用 URL に変換
+3. 「ID: URL」マッピングテーブルを postMessage で React に送信
+4. React は src に直接パスを書かず、ID からテーブルを引く
+```
+
+---
+
 ## 命名規則・コーディング規約
 
 | 対象 | 規則 | 例 |

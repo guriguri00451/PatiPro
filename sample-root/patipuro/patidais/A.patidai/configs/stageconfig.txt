@@ -1,5 +1,0 @@
-{
-  "name": "サンプル台",
-  "version": "1.0.0",
-  "stageImage": "images/jyogi.png"
-}

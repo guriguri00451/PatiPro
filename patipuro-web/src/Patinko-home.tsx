@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
+import { RushMode } from './components/RushMode';
 
 const { BOARD_WIDTH, BOARD_HEIGHT, PEG_PROXIMITY_THRESHOLD, PEG_LEAVE_THRESHOLD, LAUNCH_POWER_MIN, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
+const RUSH_MAX_SPINS = 10;
 
 const Pachinko: React.FC = () => {
     // TypeScriptの型指定: HTMLDivElement | null
@@ -14,20 +16,21 @@ const Pachinko: React.FC = () => {
     // 物理エンジン（物理演算担当のクラス）
     const physicsEngineRef = useRef<PachinkoPhysicsEngine>(new PachinkoPhysicsEngine());
     // デバッグモード
-    const [debugMode, setDebugMode] = React.useState(false);
+    const [debugMode, setDebugMode] = useState(false);
     // デバッグ描画用のCanvas
     const debugCanvasRef = useRef<HTMLCanvasElement | null>(null);
     // 連続発射用
     const isShootingRef = useRef(false);
     const shootIntervalRef = useRef<number | null>(null);
-    const [launchPower, setLaunchPower] = React.useState<number>(LAUNCH_POWER_MAX);
+    const [launchPower, setLaunchPower] = useState<number>(LAUNCH_POWER_MAX);
     const launchPowerRef = useRef<number>(LAUNCH_POWER_MAX);
     // デバッグ情報表示用
-    const [fps, setFps] = React.useState(0);
-    const [ballCount, setBallCount] = React.useState(0);
-    const [activePegCount, setActivePegCount] = React.useState(0);
-    const [totalPegCount, setTotalPegCount] = React.useState(0);
-
+    const [fps, setFps] = useState(0);
+    const [ballCount, setBallCount] = useState(0);
+    const [activePegCount, setActivePegCount] = useState(0);
+    const [totalPegCount, setTotalPegCount] = useState(0);
+    
+    const [isRushOpen, setIsRushOpen] = useState(false);
     useEffect(() => {
         if (!sceneRef.current) return;
 
@@ -366,9 +369,41 @@ useEffect(() => {
 
     // shootBall の参照を常に最新に保つ
     shootBallRef.current = shootBall;
-
+    // ---仮置きしてます。動画再生できるようになったら、消してください---
+    const testMoviePaths = {
+        reach: [
+            "https://www.w3schools.com/html/mov_bbb.mp4",
+        ],
+        success: [
+            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" 
+        ],
+        failure: [
+            "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4" 
+        ]
+    };
+    // ---仮置きしてます。動画再生できるようになったら、消してください---
     return (
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+            {/* DEBUG用 */}
+            <button 
+                onClick={() => setIsRushOpen(true)}
+                style={{
+                    position: 'absolute',
+                    top: 20,
+                    right: 20,
+                    zIndex: 200, // ラッシュ画面より上に表示（テスト用）
+                    padding: '10px 20px',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    background: '#ff0055',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px'
+                }}
+            >
+                🔥 ラッシュテスト起動 🔥
+            </button>
+            {/* DEBUG用 */}
             <div style={{ position: 'relative' }}>
                 <div style={{ 
                     color: 'white', 
@@ -462,6 +497,15 @@ useEffect(() => {
                     </div>
                 </div>
             )}
+            <RushMode
+                isOpen={isRushOpen}
+                maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
+                moviePaths={testMoviePaths}
+                onRushEnd={() => {
+                    console.log("ラッシュ終了！");
+                    setIsRushOpen(false); // 終了したら画面を閉じる
+                }}
+            />
         </div>
     );
 };
