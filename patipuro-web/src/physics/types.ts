@@ -11,9 +11,9 @@ export const PHYSICS_CONFIG = {
     LAUNCH_POWER_MIN: 12,
     LAUNCH_POWER_MAX: 30,
     // へそ（玉が入る穴）の設定
-    HESO_X: 196,
-    HESO_Y: 252,
-    HESO_RADIUS: 25,
+    HESO_X: 200,
+    HESO_Y: 500,
+    HESO_RADIUS: 15,
 } as const;
 
 /**

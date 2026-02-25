@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 import { RushMode } from './components/RushMode';
+import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
 
 const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
@@ -13,8 +14,14 @@ const Pachinko: React.FC = () => {
     const sceneRef = useRef<HTMLDivElement>(null);
     // shootBall を useRef で安定参照（WebSocketコールバックから呼ぶため）
     const shootBallRef = useRef<() => void>(() => {});
-    // 物理エンジン（物理演算担当のクラス）
-    const physicsEngineRef = useRef<PachinkoPhysicsEngine>(new PachinkoPhysicsEngine());
+    // スロットマシンへの参照
+    const slotRef = useRef<SlotMachineHandle>(null);
+    // へそコールバックを安定参照で保持（初期化後に更新するため）
+    const hesoCallbackRef = useRef<(ball: Matter.Body) => void>(() => {});
+    // 物理エンジン（ラッパー経由でhesoCallbackRefを呼ぶ）
+    const physicsEngineRef = useRef<PachinkoPhysicsEngine>(
+        new PachinkoPhysicsEngine((ball) => hesoCallbackRef.current(ball))
+    );
     // デバッグモード
     const [debugMode, setDebugMode] = useState(false);
     // デバッグ描画用のCanvas
@@ -31,6 +38,14 @@ const Pachinko: React.FC = () => {
     const [totalPegCount, setTotalPegCount] = useState(0);
     
     const [isRushOpen, setIsRushOpen] = useState(false);
+
+    // へそコールバックをslotRefと接続
+    useEffect(() => {
+        hesoCallbackRef.current = () => {
+            slotRef.current?.spin();
+        };
+    }, []);
+
     useEffect(() => {
         if (!sceneRef.current) return;
 
@@ -332,18 +347,59 @@ useEffect(() => {
             </button>
             {/* DEBUG用 */}
             <div style={{ position: 'relative' }}>
-                <div style={{ 
-                    color: 'white', 
-                    position: 'absolute', 
-                    top: -30, 
-                    width: '100%', 
+                <div style={{
+                    color: 'white',
+                    position: 'absolute',
+                    top: -30,
+                    width: '100%',
                     textAlign: 'center',
                     fontFamily: 'sans-serif'
                 }}>
                     クリック長押しで連続発射 {debugMode && <span style={{ color: '#00ff00' }}>| DEBUG: ON</span>}
                 </div>
-                
-                <div ref={sceneRef} />
+
+                <div style={{ position: 'relative' }}>
+                    <div ref={sceneRef} style={{ position: 'relative', zIndex: 2 }} />
+
+                    {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 150,
+                        left: 85,
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                    }}>
+                        <SlotMachine ref={slotRef} compact />
+                    </div>
+
+                    {/* へそUI（縦棒2本） */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 465,
+                        left: 186,
+                        width: 28,
+                        height: 32,
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                    }}>
+                        {/* 左縦棒 */}
+                        <div style={{
+                            position: 'absolute', left: 0, top: 0,
+                            width: 4, height: 32,
+                            background: '#00ffcc',
+                            boxShadow: '0 0 6px #00ffcc',
+                            borderRadius: 2,
+                        }} />
+                        {/* 右縦棒 */}
+                        <div style={{
+                            position: 'absolute', right: 0, top: 0,
+                            width: 4, height: 32,
+                            background: '#00ffcc',
+                            boxShadow: '0 0 6px #00ffcc',
+                            borderRadius: 2,
+                        }} />
+                    </div>
+                </div>
             </div>
             
             {/* デバッグ情報パネル（右側に配置） */}

@@ -86,6 +86,13 @@ export class PachinkoPhysicsEngine {
     }
 
     /**
+     * へそコールバックを後付けで設定
+     */
+    setHesoCallback(cb: (ball: Matter.Body) => void): void {
+        this.hesoManager = new HesoManager(cb);
+    }
+
+    /**
      * 玉を発射（実際のパチンコ風）
      */
     shootBall(): Matter.Body {
