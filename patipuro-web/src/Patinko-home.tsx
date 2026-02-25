@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
-import { RushMode } from './components/RushMode';
+import { RushMode, MoviePaths } from './components/RushMode';
 import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
 import { BgmPlayer } from './components/BgmPlayer';
 
@@ -41,10 +41,10 @@ const Pachinko: React.FC = () => {
     const [isRushOpen, setIsRushOpen] = useState(false);
     const [bgmTracks, setBgmTracks] = useState<string[]>(['/bgm/bgm_normal_01.mp3']);
     const [boardBackground, setBoardBackground] = useState<string>('');
-    const [rushMovies, setRushMovies] = useState({
-        reach:   ['https://www.w3schools.com/html/mov_bbb.mp4'],
-        success: ['https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'],
-        failure: ['https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4'],
+    const [rushMovies, setRushMovies] = useState<MoviePaths>({
+        reach:   [{ video: 'https://www.w3schools.com/html/mov_bbb.mp4',                                                    audio: null }],
+        success: [{ video: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', audio: null }],
+        failure: [{ video: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/friday.mp4', audio: null }],
     });
 
     // VSCode拡張のwebviewページに「Reactが準備完了」を通知する
@@ -226,10 +226,14 @@ const Pachinko: React.FC = () => {
                 // ラッシュ演出動画
                 const movies = msg.payload?.rushMoviePaths;
                 if (movies) {
+                    const toEntry = (e: { video: string; audio: string | null }) => ({
+                        video: `${serverUrl}${e.video}`,
+                        audio: e.audio ? `${serverUrl}${e.audio}` : null,
+                    });
                     setRushMovies(prev => ({
-                        reach:   movies.reach.length   > 0 ? movies.reach.map((p: string) => `${serverUrl}${p}`)   : prev.reach,
-                        success: movies.success.length > 0 ? movies.success.map((p: string) => `${serverUrl}${p}`) : prev.success,
-                        failure: movies.failure.length > 0 ? movies.failure.map((p: string) => `${serverUrl}${p}`) : prev.failure,
+                        reach:   movies.reach.length   > 0 ? movies.reach.map(toEntry)   : prev.reach,
+                        success: movies.success.length > 0 ? movies.success.map(toEntry) : prev.success,
+                        failure: movies.failure.length > 0 ? movies.failure.map(toEntry) : prev.failure,
                     }));
                 }
             }
