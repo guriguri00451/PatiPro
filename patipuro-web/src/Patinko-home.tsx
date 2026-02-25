@@ -303,6 +303,7 @@ const Pachinko: React.FC = () => {
 // 玉を発射する関数（物理エンジンを使用）
 const shootBall = (): void => {
     physicsEngineRef.current.shootBall();
+    new Audio('/bgm/pati.mp3').play().catch(() => {});
 };
 
 // 連続発射開始
