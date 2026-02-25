@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 import { RushMode } from './components/RushMode';
@@ -39,12 +39,44 @@ const Pachinko: React.FC = () => {
     
     const [isRushOpen, setIsRushOpen] = useState(false);
 
+    // 保留カウント（UIにはState、コールバック内はRefで最新値参照）
+    const [pendingCount, setPendingCount] = useState<number>(0);
+    const pendingCountRef = useRef<number>(0);
+    // スロット回転中フラグ（コールバック内のみ参照）
+    const isSpinningRef = useRef<boolean>(false);
+    // RefとStateを同時更新するヘルパー
+    const setPending = (count: number) => {
+        pendingCountRef.current = count;
+        setPendingCount(count);
+    };
+
     // へそコールバックをslotRefと接続
     useEffect(() => {
         hesoCallbackRef.current = () => {
-            slotRef.current?.spin();
+            if (!isSpinningRef.current) {
+                // 未回転 → 即座にspin（保留には積まない）
+                isSpinningRef.current = true;
+                slotRef.current?.spin();
+            } else if (pendingCountRef.current < 5) {
+                // 回転中 & 保留に空きあり → 保留+1
+                setPending(pendingCountRef.current + 1);
+            }
+            // 回転中 & 保留5個満タン → 無視
         };
-    }, []);
+    }, []); // Refとstableセッターのみ使用するので依存配列は []
+
+    // スロット回転完了時：保留を消化する
+    const handleSlotResult = useCallback((_reels: string[], _isWin: boolean) => {
+        if (pendingCountRef.current > 0) {
+            setPending(pendingCountRef.current - 1);
+            setTimeout(() => {
+                slotRef.current?.spin();
+                // isSpinningRef は true のまま（次のspinが始まる）
+            }, 500);
+        } else {
+            isSpinningRef.current = false;
+        }
+    }, []); // Refとstableセッターのみ使用するので依存配列は []
 
     useEffect(() => {
         if (!sceneRef.current) return;
@@ -369,7 +401,35 @@ useEffect(() => {
                         pointerEvents: 'none',
                         zIndex: 1,
                     }}>
-                        <SlotMachine ref={slotRef} compact />
+                        <SlotMachine ref={slotRef} compact onResult={handleSlotResult} />
+                    </div>
+
+                    {/* 保留ランプ */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 340,
+                        left: 130,
+                        display: 'flex',
+                        gap: 8,
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                    }}>
+                        {Array.from({ length: 5 }, (_, i) => {
+                            const isLit = i < pendingCount;
+                            return (
+                                <div key={i} style={{
+                                    width: 16,
+                                    height: 16,
+                                    borderRadius: '50%',
+                                    background: isLit ? '#ff6600' : '#333',
+                                    boxShadow: isLit
+                                        ? '0 0 8px #ff6600, 0 0 16px #ff660066'
+                                        : 'inset 0 0 4px #000',
+                                    border: `1.5px solid ${isLit ? '#ff9933' : '#555'}`,
+                                    transition: 'background 0.2s ease, box-shadow 0.2s ease',
+                                }} />
+                            );
+                        })}
                     </div>
 
                     {/* へそUI（縦棒2本） */}
