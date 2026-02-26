@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
-import { RushMode, MoviePaths } from './components/RushMode';
+import { RushMode, RushModeHandle, MoviePaths } from './components/RushMode';
 import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
 import { BgmPlayer } from './components/BgmPlayer';
 
@@ -17,6 +17,8 @@ const Pachinko: React.FC = () => {
     const shootBallRef = useRef<() => void>(() => {});
     // スロットマシンへの参照
     const slotRef = useRef<SlotMachineHandle>(null);
+    // RushMode への参照
+    const rushModeRef = useRef<RushModeHandle>(null);
     // へそコールバックを安定参照で保持（初期化後に更新するため）
     const hesoCallbackRef = useRef<(ball: Matter.Body) => void>(() => {});
     // 物理エンジン（ラッパー経由でhesoCallbackRefを呼ぶ）
@@ -38,6 +40,7 @@ const Pachinko: React.FC = () => {
     const [activePegCount, setActivePegCount] = useState(0);
     const [totalPegCount, setTotalPegCount] = useState(0);
     
+    const [winCount, setWinCount] = useState<number>(0);
     const [isRushOpen, setIsRushOpen] = useState(false);
     const [bgmTracks, setBgmTracks] = useState<string[]>(['/bgm/bgm_normal_01.mp3']);
     const [boardBackground, setBoardBackground] = useState<string>('');
@@ -64,6 +67,14 @@ const Pachinko: React.FC = () => {
         setPendingCount(count);
     };
 
+    // 右打ちへそコールバックを設定
+    useEffect(() => {
+        physicsEngineRef.current.setRushHesoCallback(() => {
+            rushModeRef.current?.addSpins(PHYSICS_CONFIG.RUSH_HESO_SPIN_BONUS);
+            setWinCount(prev => prev + 1);
+        });
+    }, []);
+
     // へそコールバックをslotRefと接続
     useEffect(() => {
         hesoCallbackRef.current = () => {
@@ -82,6 +93,7 @@ const Pachinko: React.FC = () => {
     // スロット回転完了時：保留を消化する
     const handleSlotResult = useCallback((_reels: string[], isWin: boolean) => {
         if (isWin) {
+            setWinCount(prev => prev + 1);
             // 数字が揃った → ラッシュ突入＆右打ちモード
             setIsRushOpen(true);
             physicsEngineRef.current.setRushMode(true);
@@ -136,6 +148,45 @@ const Pachinko: React.FC = () => {
         Render.run(render);
         const runner = Runner.create();
         Runner.run(runner, engine);
+
+        // 玉を銀色・光沢感で描画（afterRender でラジアルグラデーションを重ね描き）
+        Matter.Events.on(render, 'afterRender', () => {
+            const ctx = render.context;
+            const r = 5.2;
+            physicsEngine.getBalls().forEach((ball) => {
+                const { x, y } = ball.position;
+
+                // ベースの金属グラデーション（光源：左上）
+                const metal = ctx.createRadialGradient(
+                    x - r * 0.35, y - r * 0.4, r * 0.05,
+                    x + r * 0.1,  y + r * 0.2,  r
+                );
+                metal.addColorStop(0,    '#ffffff');
+                metal.addColorStop(0.2,  '#e8e8e8');
+                metal.addColorStop(0.55, '#a8a8a8');
+                metal.addColorStop(0.85, '#686868');
+                metal.addColorStop(1,    '#3a3a3a');
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = metal;
+                ctx.fill();
+
+                // 光沢ハイライト（左上の小さな白い楕円）
+                const glare = ctx.createRadialGradient(
+                    x - r * 0.32, y - r * 0.38, 0,
+                    x - r * 0.18, y - r * 0.22, r * 0.48
+                );
+                glare.addColorStop(0,   'rgba(255,255,255,0.88)');
+                glare.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+                glare.addColorStop(1,   'rgba(255,255,255,0)');
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = glare;
+                ctx.fill();
+            });
+        });
 
         // 衝突イベントの検知
         Matter.Events.on(engine, 'collisionStart', (event) => {
@@ -287,6 +338,7 @@ const Pachinko: React.FC = () => {
             Matter.Events.off(engine, 'collisionStart');
             Matter.Events.off(engine, 'collisionEnd');
             Matter.Events.off(engine, 'beforeUpdate');
+            Matter.Events.off(render, 'afterRender');
             ws?.close();
             Render.stop(render);
             Runner.stop(runner);
@@ -422,6 +474,30 @@ useEffect(() => {
                     )}
                     <div ref={sceneRef} style={{ position: 'relative', zIndex: 2 }} />
 
+                    {/* 当たり累積カウンター */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 100,
+                        left: 85,
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                        textAlign: 'center',
+                        fontFamily: '"Courier New", monospace',
+                    }}>
+                        <div style={{ fontSize: 9, letterSpacing: 3, color: '#ffcc00', textShadow: '0 0 4px #ffcc00' }}>
+                            HIT
+                        </div>
+                        <div style={{
+                            fontSize: 28,
+                            fontWeight: 900,
+                            color: winCount > 0 ? '#00ff88' : '#555',
+                            textShadow: winCount > 0 ? '0 0 10px #00ff88, 0 0 24px #00ff8844' : 'none',
+                            transition: 'color 0.3s ease, text-shadow 0.3s ease',
+                        }}>
+                            {String(winCount).padStart(3, '0')}
+                        </div>
+                    </div>
+
                     {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
                     <div style={{
                         position: 'absolute',
@@ -460,6 +536,34 @@ useEffect(() => {
                             );
                         })}
                     </div>
+
+                    {/* 右打ちへそUI（縦棒2本・ラッシュ中のみ表示） */}
+                    {isRushOpen && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 505, left: 316,
+                            width: 36, height: 30,
+                            pointerEvents: 'none',
+                            zIndex: 10,
+                        }}>
+                            {/* 左縦棒 */}
+                            <div style={{
+                                position: 'absolute', left: 0, top: 0,
+                                width: 4, height: 30,
+                                background: '#ff6600',
+                                boxShadow: '0 0 6px #ff6600',
+                                borderRadius: 2,
+                            }} />
+                            {/* 右縦棒 */}
+                            <div style={{
+                                position: 'absolute', right: 0, top: 0,
+                                width: 4, height: 30,
+                                background: '#ff6600',
+                                boxShadow: '0 0 6px #ff6600',
+                                borderRadius: 2,
+                            }} />
+                        </div>
+                    )}
 
                     {/* へそUI（縦棒2本） */}
                     <div style={{
@@ -544,6 +648,7 @@ useEffect(() => {
                 </div>
             )}
             <RushMode
+                ref={rushModeRef}
                 isOpen={isRushOpen}
                 maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
                 moviePaths={rushMovies}

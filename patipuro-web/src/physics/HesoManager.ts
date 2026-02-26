@@ -10,10 +10,13 @@ export class HesoManager {
     private readonly radius: number;
     private onBallEntered: (ball: Matter.Body) => void;
 
-    constructor(onBallEntered: (ball: Matter.Body) => void) {
-        this.x = PHYSICS_CONFIG.HESO_X;
-        this.y = PHYSICS_CONFIG.HESO_Y;
-        this.radius = PHYSICS_CONFIG.HESO_RADIUS;
+    constructor(
+        onBallEntered: (ball: Matter.Body) => void,
+        config?: { x: number; y: number; radius: number }
+    ) {
+        this.x      = config?.x      ?? PHYSICS_CONFIG.HESO_X;
+        this.y      = config?.y      ?? PHYSICS_CONFIG.HESO_Y;
+        this.radius = config?.radius ?? PHYSICS_CONFIG.HESO_RADIUS;
         this.onBallEntered = onBallEntered;
     }
 

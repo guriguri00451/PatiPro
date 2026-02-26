@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // ---- 確率定数（後で微調整可能） ----
 const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
@@ -25,6 +25,10 @@ type Props = {
   onRushEnd: () => void;
 };
 
+export type RushModeHandle = {
+  addSpins: (n: number) => void;
+};
+
 // ---- ユーティリティ ----
 function lottery(): SpinResult {
   const r = Math.random();
@@ -39,7 +43,10 @@ function pickRandom<T>(arr: T[]): T | null {
 }
 
 // ---- コンポーネント ----
-export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRushEnd }) => {
+export const RushMode = React.forwardRef<RushModeHandle, Props>((
+  { isOpen, maxSpins, moviePaths, onRushEnd },
+  ref
+) => {
   const [remainingSpins, setRemainingSpins] = useState(maxSpins);
   const [currentEntry, setCurrentEntry]     = useState<MovieEntry | null>(null);
   // 同じsrcが連続で選ばれた場合でも <video> を再マウントするためのカウンタ
@@ -58,6 +65,14 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
   useEffect(() => { onRushEndRef.current  = onRushEnd;   }, [onRushEnd]);
   useEffect(() => { maxSpinsRef.current   = maxSpins;    }, [maxSpins]);
   useEffect(() => { moviePathsRef.current = moviePaths;  }, [moviePaths]);
+
+  useImperativeHandle(ref, () => ({
+    addSpins: (n: number) => {
+      const next = remainingSpinsRef.current + n;
+      remainingSpinsRef.current = next;
+      setRemainingSpins(next);
+    },
+  }));
 
   // 音声を停止してリセット
   const stopAudio = useCallback(() => {
@@ -280,4 +295,4 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       </div>
     </div>
   );
-};
+});
