@@ -38,6 +38,7 @@ const Pachinko: React.FC = () => {
     const [activePegCount, setActivePegCount] = useState(0);
     const [totalPegCount, setTotalPegCount] = useState(0);
     
+    const [winCount, setWinCount] = useState<number>(0);
     const [isRushOpen, setIsRushOpen] = useState(false);
     const [bgmTracks, setBgmTracks] = useState<string[]>(['/bgm/bgm_normal_01.mp3']);
     const [boardBackground, setBoardBackground] = useState<string>('');
@@ -82,6 +83,7 @@ const Pachinko: React.FC = () => {
     // スロット回転完了時：保留を消化する
     const handleSlotResult = useCallback((_reels: string[], isWin: boolean) => {
         if (isWin) {
+            setWinCount(prev => prev + 1);
             // 数字が揃った → ラッシュ突入＆右打ちモード
             setIsRushOpen(true);
             physicsEngineRef.current.setRushMode(true);
@@ -421,6 +423,30 @@ useEffect(() => {
                         />
                     )}
                     <div ref={sceneRef} style={{ position: 'relative', zIndex: 2 }} />
+
+                    {/* 当たり累積カウンター */}
+                    <div style={{
+                        position: 'absolute',
+                        top: 100,
+                        left: 85,
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                        textAlign: 'center',
+                        fontFamily: '"Courier New", monospace',
+                    }}>
+                        <div style={{ fontSize: 9, letterSpacing: 3, color: '#ffcc00', textShadow: '0 0 4px #ffcc00' }}>
+                            HIT
+                        </div>
+                        <div style={{
+                            fontSize: 28,
+                            fontWeight: 900,
+                            color: winCount > 0 ? '#00ff88' : '#555',
+                            textShadow: winCount > 0 ? '0 0 10px #00ff88, 0 0 24px #00ff8844' : 'none',
+                            transition: 'color 0.3s ease, text-shadow 0.3s ease',
+                        }}>
+                            {String(winCount).padStart(3, '0')}
+                        </div>
+                    </div>
 
                     {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
                     <div style={{
