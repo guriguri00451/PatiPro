@@ -139,6 +139,45 @@ const Pachinko: React.FC = () => {
         const runner = Runner.create();
         Runner.run(runner, engine);
 
+        // 玉を銀色・光沢感で描画（afterRender でラジアルグラデーションを重ね描き）
+        Matter.Events.on(render, 'afterRender', () => {
+            const ctx = render.context;
+            const r = 5.2;
+            physicsEngine.getBalls().forEach((ball) => {
+                const { x, y } = ball.position;
+
+                // ベースの金属グラデーション（光源：左上）
+                const metal = ctx.createRadialGradient(
+                    x - r * 0.35, y - r * 0.4, r * 0.05,
+                    x + r * 0.1,  y + r * 0.2,  r
+                );
+                metal.addColorStop(0,    '#ffffff');
+                metal.addColorStop(0.2,  '#e8e8e8');
+                metal.addColorStop(0.55, '#a8a8a8');
+                metal.addColorStop(0.85, '#686868');
+                metal.addColorStop(1,    '#3a3a3a');
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = metal;
+                ctx.fill();
+
+                // 光沢ハイライト（左上の小さな白い楕円）
+                const glare = ctx.createRadialGradient(
+                    x - r * 0.32, y - r * 0.38, 0,
+                    x - r * 0.18, y - r * 0.22, r * 0.48
+                );
+                glare.addColorStop(0,   'rgba(255,255,255,0.88)');
+                glare.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+                glare.addColorStop(1,   'rgba(255,255,255,0)');
+
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fillStyle = glare;
+                ctx.fill();
+            });
+        });
+
         // 衝突イベントの検知
         Matter.Events.on(engine, 'collisionStart', (event) => {
             event.pairs.forEach((pair) => {
@@ -289,6 +328,7 @@ const Pachinko: React.FC = () => {
             Matter.Events.off(engine, 'collisionStart');
             Matter.Events.off(engine, 'collisionEnd');
             Matter.Events.off(engine, 'beforeUpdate');
+            Matter.Events.off(render, 'afterRender');
             ws?.close();
             Render.stop(render);
             Runner.stop(runner);

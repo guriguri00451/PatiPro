@@ -120,7 +120,7 @@ export class PachinkoPhysicsEngine {
             density: 0.004,  // 密度を上げて安定化
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
-                fillStyle: '#ff6b6b' // パチンコ玉っぽい色
+                fillStyle: '#b0b0b0' // afterRender でグラデーション描画するためベースシルバーに
             }
         });
 
