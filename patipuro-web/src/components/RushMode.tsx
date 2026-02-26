@@ -27,6 +27,7 @@ type Props = {
 
 export type RushModeHandle = {
   addSpins: (n: number) => void;
+  playReach: () => void;
 };
 
 // ---- ユーティリティ ----
@@ -51,6 +52,8 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   const [currentEntry, setCurrentEntry]     = useState<MovieEntry | null>(null);
   // 同じsrcが連続で選ばれた場合でも <video> を再マウントするためのカウンタ
   const [spinKey, setSpinKey]               = useState(0);
+  // リーチ演出のみ単独再生（ラッシュモード外でも動く）
+  const [reachOverride, setReachOverride]   = useState<{ entry: MovieEntry; key: number } | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -71,6 +74,11 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
       const next = remainingSpinsRef.current + n;
       remainingSpinsRef.current = next;
       setRemainingSpins(next);
+    },
+    playReach: () => {
+      const entry = pickRandom(moviePathsRef.current.reach);
+      if (!entry) return;
+      setReachOverride({ entry, key: Date.now() });
     },
   }));
 
@@ -159,6 +167,58 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
       }
     }
   }, [startSpin, stopAudio]);
+
+  // ラッシュモード外でのリーチ演出単独表示
+  if (!isOpen && reachOverride) {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+        }}
+      >
+        <audio ref={audioRef} />
+        <div
+          style={{
+            position: 'relative',
+            width: '75%',
+            maxWidth: 280,
+            aspectRatio: '16 / 9',
+            background: '#000',
+            borderRadius: 8,
+            overflow: 'hidden',
+            boxShadow: '0 0 20px rgba(255,100,0,0.6)',
+            pointerEvents: 'auto',
+          }}
+        >
+          <video
+            key={reachOverride.key}
+            src={reachOverride.entry.video}
+            autoPlay
+            muted
+            playsInline
+            onPlay={() => {
+              const audio = audioRef.current;
+              if (!audio || !reachOverride.entry.audio) return;
+              audio.src = reachOverride.entry.audio;
+              audio.currentTime = 0;
+              audio.play().catch(() => {});
+            }}
+            onEnded={() => {
+              stopAudio();
+              setReachOverride(null);
+            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (!isOpen) return null;
 

@@ -264,6 +264,8 @@ const Pachinko: React.FC = () => {
             if (!msg || typeof msg !== 'object') return;
             if (msg.type === 'keypress') {
                 shootBallRef.current();
+            } else if (msg.type === 'reach') {
+                rushModeRef.current?.playReach();
             } else if (msg.type === 'burst' && typeof msg.count === 'number') {
                 const count = Math.min(Math.max(1, msg.count), 50);
                 for (let i = 0; i < count; i++) {
