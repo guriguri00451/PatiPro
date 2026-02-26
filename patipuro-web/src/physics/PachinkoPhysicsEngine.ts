@@ -10,6 +10,8 @@ export class PachinkoPhysicsEngine {
     private engine: Matter.Engine;
     private pegManager: PegStateManager;
     private hesoManager: HesoManager;
+    private rushHesoManager: HesoManager;
+    private rushHesoCallback: (() => void) | null = null;
     private balls: Set<Matter.Body> = new Set();
     private monitorSensorIds: Set<number> = new Set();
     private ballInMonitorZone: Set<number> = new Set();
@@ -39,6 +41,14 @@ export class PachinkoPhysicsEngine {
 
         this.pegManager = new PegStateManager(this.engine);
         this.hesoManager = new HesoManager(onHesoEntered ?? (() => {}));
+        this.rushHesoManager = new HesoManager(
+            () => { this.rushHesoCallback?.(); },
+            {
+                x:      PHYSICS_CONFIG.RUSH_HESO_X,
+                y:      PHYSICS_CONFIG.RUSH_HESO_Y,
+                radius: PHYSICS_CONFIG.RUSH_HESO_RADIUS,
+            }
+        );
     }
 
     /**
@@ -103,6 +113,13 @@ export class PachinkoPhysicsEngine {
     }
 
     /**
+     * 右打ちへそのコールバックを設定
+     */
+    setRushHesoCallback(cb: () => void): void {
+        this.rushHesoCallback = cb;
+    }
+
+    /**
      * 玉を発射（実際のパチンコ風）
      */
     shootBall(): Matter.Body {
@@ -120,17 +137,8 @@ export class PachinkoPhysicsEngine {
             density: 0.004,  // 密度を上げて安定化
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
-                fillStyle: '#ff6b6b' // パチンコ玉っぽい色
-            },
-            // --- すり抜け対策の核 ---
-            plugin: {
-                continuous: {
-                    enabled: true // 連続衝突判定を有効化
-                }
-            },
-            collisionFilter: {
-                group: -1, // 負の同一グループ番号を設定すると、そのボディ同士は衝突しなくなる
-            },
+                fillStyle: '#b0b0b0' // afterRender でグラデーション描画するためベースシルバーに
+            }
         });
 
         // 下から上へ打ち出し
@@ -269,6 +277,12 @@ export class PachinkoPhysicsEngine {
         // へそに入った玉を検知して削除
         const hesoEntered = this.hesoManager.checkBalls(this.balls);
         hesoEntered.forEach((ball) => this.removeBall(ball));
+
+        // 右打ちへそ判定（rushMode 時のみ）
+        if (this.rushMode) {
+            const rushEntered = this.rushHesoManager.checkBalls(this.balls);
+            rushEntered.forEach((ball) => this.removeBall(ball));
+        }
     }
 
     /**

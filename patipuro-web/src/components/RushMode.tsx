@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // ---- 確率定数（後で微調整可能） ----
 const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
@@ -7,10 +7,15 @@ const PROB_REACH   = 0.100; // 10%  ハズレのうちリーチ演出に発展�
 // ---- 型定義 ----
 type SpinResult = 'success' | 'reach' | 'failure';
 
-type MoviePaths = {
-  reach: string[];
-  success: string[];
-  failure: string[];
+export type MovieEntry = {
+  video: string;
+  audio: string | null;
+};
+
+export type MoviePaths = {
+  reach:   MovieEntry[];
+  success: MovieEntry[];
+  failure: MovieEntry[];
 };
 
 type Props = {
@@ -18,6 +23,10 @@ type Props = {
   maxSpins: number;
   moviePaths: MoviePaths;
   onRushEnd: () => void;
+};
+
+export type RushModeHandle = {
+  addSpins: (n: number) => void;
 };
 
 // ---- ユーティリティ ----
@@ -34,11 +43,16 @@ function pickRandom<T>(arr: T[]): T | null {
 }
 
 // ---- コンポーネント ----
-export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRushEnd }) => {
+export const RushMode = React.forwardRef<RushModeHandle, Props>((
+  { isOpen, maxSpins, moviePaths, onRushEnd },
+  ref
+) => {
   const [remainingSpins, setRemainingSpins] = useState(maxSpins);
-  const [currentSrc, setCurrentSrc]         = useState<string | null>(null);
+  const [currentEntry, setCurrentEntry]     = useState<MovieEntry | null>(null);
   // 同じsrcが連続で選ばれた場合でも <video> を再マウントするためのカウンタ
   const [spinKey, setSpinKey]               = useState(0);
+
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Refで最新値を保持（コールバック内で古いクロージャを参照しないため）
   const spinResultRef       = useRef<SpinResult>('failure');
@@ -52,8 +66,26 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
   useEffect(() => { maxSpinsRef.current   = maxSpins;    }, [maxSpins]);
   useEffect(() => { moviePathsRef.current = moviePaths;  }, [moviePaths]);
 
+  useImperativeHandle(ref, () => ({
+    addSpins: (n: number) => {
+      const next = remainingSpinsRef.current + n;
+      remainingSpinsRef.current = next;
+      setRemainingSpins(next);
+    },
+  }));
+
+  // 音声を停止してリセット
+  const stopAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
   // 1スピン開始
   const startSpin = useCallback(() => {
+    stopAudio();
+
     const result = lottery();
     spinResultRef.current = result;
 
@@ -63,8 +95,8 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
                              moviePathsRef.current.failure;
 
     // 動画なし（ファイルが空・未設定）→ 失敗扱いで次のスピンへ即進む
-    const src = pickRandom(paths);
-    if (!src) {
+    const entry = pickRandom(paths);
+    if (!entry) {
       const next = remainingSpinsRef.current - 1;
       remainingSpinsRef.current = next;
       setRemainingSpins(next);
@@ -76,23 +108,37 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       return;
     }
 
-    setCurrentSrc(src);
+    setCurrentEntry(entry);
     setSpinKey(k => k + 1);
-  }, []);
+  }, [stopAudio]);
 
   // isOpen が true になったらリセット＆最初のスピン開始
   useEffect(() => {
     if (!isOpen) {
-      setCurrentSrc(null);
+      stopAudio();
+      setCurrentEntry(null);
       return;
     }
     remainingSpinsRef.current = maxSpinsRef.current;
     setRemainingSpins(maxSpinsRef.current);
     startSpin();
-  }, [isOpen, startSpin]);
+  }, [isOpen, startSpin, stopAudio]);
+
+  // 動画再生開始時に音声を同期再生
+  const handleVideoPlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio || !currentEntry?.audio) return;
+    audio.src = currentEntry.audio;
+    audio.currentTime = 0;
+    audio.play().catch(() => {
+      // autoplay が拒否された場合は無視
+    });
+  }, [currentEntry]);
 
   // 動画終了時の評価ロジック
   const handleVideoEnded = useCallback(() => {
+    stopAudio();
+
     const result = spinResultRef.current;
 
     if (result === 'success') {
@@ -112,7 +158,7 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         onRushEndRef.current();
       }
     }
-  }, [startSpin]);
+  }, [startSpin, stopAudio]);
 
   if (!isOpen) return null;
 
@@ -134,6 +180,9 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
         pointerEvents: 'none',
       }}
     >
+      {/* 音声要素（非表示） */}
+      <audio ref={audioRef} />
+
       {/* 動画エリア（盤面中央に小さく表示） */}
       <div
         style={{
@@ -148,13 +197,14 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
           pointerEvents: 'auto',
         }}
       >
-        {currentSrc && (
+        {currentEntry && (
           <video
             key={spinKey}
-            src={currentSrc}
+            src={currentEntry.video}
             autoPlay
             muted
             playsInline
+            onPlay={handleVideoPlay}
             onEnded={handleVideoEnded}
             style={{
               width: '100%',
@@ -245,4 +295,4 @@ export const RushMode: React.FC<Props> = ({ isOpen, maxSpins, moviePaths, onRush
       </div>
     </div>
   );
-};
+});
