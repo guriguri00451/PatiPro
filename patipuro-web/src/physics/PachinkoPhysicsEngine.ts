@@ -130,7 +130,7 @@ export class PachinkoPhysicsEngine {
         const launchY = 565;
 
         const ball = Bodies.circle(launchX, launchY, 5.2, {
-            restitution: 0.5,
+            restitution: 0.95,
             friction: 0.005,
             frictionAir: 0.001,  // 空気抵抗（すり抜け防止）
             slop: 0.005,  // より厳密に
@@ -138,15 +138,18 @@ export class PachinkoPhysicsEngine {
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
                 fillStyle: '#b0b0b0' // afterRender でグラデーション描画するためベースシルバーに
+            },
+            collisionFilter: {
+                group: -1,
             }
         });
 
         // 下から上へ打ち出し
         // ラッシュ中（右打ち）は強めに発射して右チャンネルへ
         const speed = this.rushMode
-            ? 25 + Math.random() * 2   // 右打ち：強め（27〜29）
-            : 16 + Math.random() * 2;  // 通常（18〜20）
-        const dirX = 0.02;
+            ? 35 + Math.random() * 0.01// 右打ち：強め（27〜29）
+            : 25 + Math.random() * 0.03// 通常（18〜20）
+        const dirX = 0.08;
         const dirY = -1.0;
 
         Body.setVelocity(ball, { x: speed * dirX, y: speed * dirY });
@@ -230,14 +233,14 @@ export class PachinkoPhysicsEngine {
             // 右打ち：右チャンネルに到達（x > 260）するまで解除しない
             if (this.launchPhaseBalls.has(ball.id)) {
                 const shouldExit = isRushBall
-                    ? ball.position.x > 260  // 右打ち：右半分に入るまで高速維持
+                    ? ball.position.y < 160  // 右打ち：右半分に入るまで高速維持
                     : ball.position.y < 160; // 通常：上端で解除
                 if (shouldExit) this.launchPhaseBalls.delete(ball.id);
             }
 
             // 速度が速すぎる場合は制限する（発射レーン内は免除）
             // 右打ち玉は通常より高い上限（右チャンネルまでのエネルギーを確保）
-            const maxSpeed = isRushBall ? 20 : 12;
+            const maxSpeed = isRushBall ? 12 : 12;
             const speed = Math.sqrt(ball.velocity.x ** 2 + ball.velocity.y ** 2);
             if (!this.launchPhaseBalls.has(ball.id) && speed > maxSpeed) {
                 const scale = maxSpeed / speed;
