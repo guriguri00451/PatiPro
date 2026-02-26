@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
 import { RushMode, RushModeHandle, MoviePaths } from './components/RushMode';
-import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
+import { NormalSlot, NormalSlotHandle } from './components/NormalSlot';
 import { BgmPlayer } from './components/BgmPlayer';
 
 const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
@@ -15,8 +15,8 @@ const Pachinko: React.FC = () => {
     const sceneRef = useRef<HTMLDivElement>(null);
     // shootBall を useRef で安定参照（WebSocketコールバックから呼ぶため）
     const shootBallRef = useRef<() => void>(() => {});
-    // スロットマシンへの参照
-    const slotRef = useRef<SlotMachineHandle>(null);
+    // ノーマルスロット（演出動画）への参照
+    const slotRef = useRef<NormalSlotHandle>(null);
     // RushMode への参照
     const rushModeRef = useRef<RushModeHandle>(null);
     // へそコールバックを安定参照で保持（初期化後に更新するため）
@@ -530,15 +530,15 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* スロット液晶オーバーレイ（物理演算レイヤーの下） */}
+                    {/* 演出動画オーバーレイ（物理演算レイヤーの下） */}
                     <div style={{
                         position: 'absolute',
                         top: 150,
-                        left: 85,
+                        left: 45,
                         pointerEvents: 'none',
                         zIndex: 1,
                     }}>
-                        <SlotMachine ref={slotRef} compact onResult={handleSlotResult} />
+                        <NormalSlot ref={slotRef} moviePaths={rushMovies} onResult={handleSlotResult} />
                     </div>
 
                     {/* 保留ランプ */}
