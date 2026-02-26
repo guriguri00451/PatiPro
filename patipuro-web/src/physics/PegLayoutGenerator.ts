@@ -25,22 +25,20 @@ export class PegLayoutGenerator {
         // =========================================================
         // 2. 左側の縦ルート（液晶の左に沿って落ちる道）
         // =========================================================
-        // 外側の縦壁
-        //bodies.push(this.createWall(Bodies, 45, 250, 180, 8, Math.PI / 2));
         // =========================================================
         // 3. 左下：風車と、ヘソへ向かう斜めレール
         // =========================================================
         // 風車（図の左下にあるお花/歯車マークを八角形で表現）
-        bodies.push(Bodies.polygon(40, 370, 8, 14, {
-            isStatic: true, // ←現在は「固定」されています
-            restitution: 0.2,
-            friction: 0.01,
-            frictionStatic: 0.0,
-            render: { fillStyle: '#ffcc00' } // 黄色い風車
-        }));
+        // bodies.push(Bodies.polygon(40, 370, 8, 14, {
+        //     isStatic: true, // ←現在は「固定」されています
+        //     restitution: 0.2,
+        //     friction: 0.01,
+        //     frictionStatic: 0.0,
+        //     render: { fillStyle: '#ffcc00' } // 黄色い風車
+        // }));
 
         // 液晶の下を通ってヘソに向かう左側のレール
-        bodies.push(this.createGuidanceRail(Bodies, 120, 420, 140, 8, 0.35));
+        bodies.push(this.createGuidanceRail(Bodies, 120, 420, 90, 8, 0.35));
 
         // =========================================================
         // 4. 右側の縦ルートと、ヘソへ向かう斜めレール
@@ -48,7 +46,7 @@ export class PegLayoutGenerator {
         // 液晶の右側に沿う縦壁
         bodies.push(this.createWall(Bodies, 315, 200, 200, 8, Math.PI / 2));
         // 液晶の下を通ってヘソに向かう右側のレール
-        bodies.push(this.createGuidanceRail(Bodies, 280, 420, 140, 8, -0.35));
+        bodies.push(this.createGuidanceRail(Bodies, 280, 420, 90, 8, -0.35));
 
         // =========================================================
         // 5. ヘソ（スタートチャッカー：図の「U」字部分）
@@ -93,7 +91,7 @@ export class PegLayoutGenerator {
         const ben = this.createCurvedRail(Bodies, 220, 190, 100, 180, 40, 10);
         //bodies.push(...ben);
         // 大外の右壁（縦棒）
-        bodies.push(this.createWallSegment(Bodies, 395, 190, 395, 600));
+        bodies.push(this.createWallSegment(Bodies, 395, 100, 395, 600));
 
         // 左うちの障害物（棒セグメントの連結）
         const rightObstacle = this.createCurvedRail(Bodies, 180, 40, 0, 4, 3, 0);
@@ -105,7 +103,7 @@ export class PegLayoutGenerator {
         // ① 上部内側カーブ壁（右打ちルートの天井ガイド）
         // π*0.70 始まりにして左上の入口を広く取る
         // 天井ドーム（棒セグメントの連結）
-        const underDome = this.createCurvedRail(Bodies, 70, 130, -55, 15, 20, 5);
+        const underDome = this.createCurvedRail(Bodies, 70, 130, -55, 15, 25, 5);
         bodies.push(...underDome);
 
         // さぶ天井ドーム（棒セグメントの連結）
@@ -123,6 +121,29 @@ export class PegLayoutGenerator {
 
         // 液晶センサー
         bodies.push(this.createCenterMonitorSensor(Bodies));
+
+        // =========================================================
+        // 9. ランダムな釘打ち（適当にばらまく）
+        // =========================================================
+        const areaConfigs = [
+            { x: 20, y: 180, w: 60, h: 150, count: 8 },  // 液晶の左
+            { x: 280, y: 180, w: 60, h: 150, count: 8 }, // 液晶の右
+            { x: 100, y: 350, w: 250, h: 60, count: 12 } // 液晶の下（ヘソ周辺）
+        ];
+
+        areaConfigs.forEach(area => {
+            for (let i = 0; i < area.count; i++) {
+                const rx = area.x + Math.random() * area.w;
+                const ry = area.y + Math.random() * area.h;
+                
+                bodies.push(Bodies.circle(rx, ry, 2.6, { // 2.6は標準の釘サイズ
+                    isStatic: true,
+                    label: 'peg', // PachinkoPhysicsEngineで認識されるラベル
+                    restitution: 0.6,
+                    render: { fillStyle: '#d4af37' } // ゴールド色
+                }));
+            }
+        });
 
         return bodies;
     }
