@@ -1,0 +1,825 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: node_modules, dist, build, .git, *.png, *.jpg, *.zip, *.pdf
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+icons/
+  patipuro.svg
+src/
+  utils/
+    assetServer.ts
+    patidaiLoader.ts
+  extension.ts
+package.json
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="icons/patipuro.svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+  <circle cx="8" cy="8" r="7"/>
+  <circle cx="8" cy="8" r="4" fill="none" stroke="#1a1a2e" stroke-width="1.5"/>
+  <circle cx="8" cy="8" r="1.5" fill="#1a1a2e"/>
+</svg>
+</file>
+
+<file path="src/utils/assetServer.ts">
+import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
+
+let server: http.Server | null = null;
+
+const MIME: Record<string, string> = {
+    '.mp4':  'video/mp4',
+    '.webm': 'video/webm',
+    '.mov':  'video/quicktime',
+    '.mp3':  'audio/mpeg',
+    '.ogg':  'audio/ogg',
+    '.wav':  'audio/wav',
+    '.png':  'image/png',
+    '.jpg':  'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+};
+
+export function startAssetServer(rootDir: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+        stopAssetServer();
+
+        server = http.createServer((req, res) => {
+            if (!req.url) { res.writeHead(404); res.end(); return; }
+
+            const filePath = path.join(rootDir, decodeURIComponent(req.url.split('?')[0]));
+
+            // ディレクトリトラバーサル防止
+            if (!filePath.startsWith(rootDir)) {
+                res.writeHead(403); res.end(); return;
+            }
+            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+                res.writeHead(404); res.end(); return;
+            }
+
+            const ext  = path.extname(filePath).toLowerCase();
+            const mime = MIME[ext] ?? 'application/octet-stream';
+            const size = fs.statSync(filePath).size;
+            const range = req.headers['range'];
+
+            if (range) {
+                // ブラウザからの Range リクエスト（動画のシーク・バッファリングに必須）
+                const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+                const start = parseInt(startStr, 10);
+                const end   = endStr ? parseInt(endStr, 10) : size - 1;
+                const chunk = end - start + 1;
+
+                res.writeHead(206, {
+                    'Content-Range':  `bytes ${start}-${end}/${size}`,
+                    'Accept-Ranges':  'bytes',
+                    'Content-Length': chunk,
+                    'Content-Type':   mime,
+                    'Access-Control-Allow-Origin': '*',
+                });
+                fs.createReadStream(filePath, { start, end }).pipe(res);
+            } else {
+                // 通常リクエスト（Accept-Ranges を宣言してブラウザに Range 対応を知らせる）
+                res.writeHead(200, {
+                    'Content-Length': size,
+                    'Accept-Ranges':  'bytes',
+                    'Content-Type':   mime,
+                    'Access-Control-Allow-Origin': '*',
+                });
+                fs.createReadStream(filePath).pipe(res);
+            }
+        });
+
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const addr = server!.address() as { port: number };
+            resolve(addr.port);
+        });
+    });
+}
+
+export function stopAssetServer(): void {
+    if (server) {
+        server.close();
+        server = null;
+    }
+}
+</file>
+
+<file path="src/utils/patidaiLoader.ts">
+import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
+import AdmZip from 'adm-zip';
+
+export interface EffectSet {
+    name: string;
+    movieUri: string;
+    type: 'success' | 'reach' | 'fail';
+    probability: number;
+    stageEffectType: 'none' | 'A' | 'B' | 'C';
+}
+
+export interface RushMovieEntry {
+    video: string;
+    audio: string | null;
+}
+
+export interface RushMoviePaths {
+    reach: RushMovieEntry[];
+    success: RushMovieEntry[];
+    failure: RushMovieEntry[];
+}
+
+export interface LoadedDaiData {
+    stageConfig: any;
+    assets: Record<string, string>;
+    normalEffects: EffectSet[];
+    rushEffects: EffectSet[];
+    extractedRoot: string;           // アセットサーバーのルートディレクトリ
+    bgmPaths: string[];              // /assets/bgm/xxx.mp3 形式の相対パス
+    boardBackgroundPath: string;     // /assets/images/xxx.png 形式の相対パス
+    rushMoviePaths: RushMoviePaths;  // /assets/movies/reach/xxx.mp4 形式の相対パス
+}
+
+export async function loadPatidai(zipPath: string, context: vscode.ExtensionContext, webview: vscode.Webview): Promise<LoadedDaiData> {
+    // 解凍先ディレクトリ（拡張機能のグローバルストレージ）
+    const storageUri = context.globalStorageUri;
+    const extractPath = path.join(storageUri.fsPath, 'current_dai');
+
+    // 1. 解凍処理
+    const zip = new AdmZip(zipPath);
+    if (!fs.existsSync(extractPath)) {
+        fs.mkdirSync(extractPath, { recursive: true });
+    } else {
+        fs.rmSync(extractPath, { recursive: true, force: true });
+        fs.mkdirSync(extractPath, { recursive: true });
+    }
+    zip.extractAllTo(extractPath, true);
+
+    // 真のルートディレクトリ（configsがある場所）を特定する
+    let actualRoot = extractPath;
+    const topLevelItems = fs.readdirSync(extractPath).filter(item =>
+        item !== '__MACOSX' && !item.startsWith('.')
+    );
+    if (!topLevelItems.includes('configs') && topLevelItems.length === 1) {
+        const potentialRoot = path.join(extractPath, topLevelItems[0]);
+        if (fs.statSync(potentialRoot).isDirectory()) {
+            actualRoot = potentialRoot;
+        }
+    }
+
+    // 2. webview URI 変換（既存機能用）
+    const toWebviewUri = (relPath: string) => {
+        const fullPath = path.join(actualRoot, relPath);
+        return webview.asWebviewUri(vscode.Uri.file(fullPath)).toString();
+    };
+
+    // 3. assetsフォルダ内の全ファイルをURI辞書化（既存機能用）
+    const getAllAssetsUris = (dir: string): Record<string, string> => {
+        let results: Record<string, string> = {};
+        const assetsDir = path.join(actualRoot, 'assets');
+        if (!fs.existsSync(dir)) return results;
+        for (const file of fs.readdirSync(dir)) {
+            const fullPath = path.join(dir, file);
+            if (fs.statSync(fullPath).isDirectory()) {
+                results = { ...results, ...getAllAssetsUris(fullPath) };
+            } else {
+                const relToAssets = path.relative(assetsDir, fullPath).replace(/\\/g, '/');
+                results[relToAssets] = webview.asWebviewUri(vscode.Uri.file(fullPath)).toString();
+            }
+        }
+        return results;
+    };
+
+    // 4. 演出設定（JSON）と動画をセットにした配列を作成
+    const loadEffects = (subDir: string): EffectSet[] => {
+        const dirPath = path.join(extractPath, 'configs', 'effects', subDir);
+        if (!fs.existsSync(dirPath)) return [];
+        return fs.readdirSync(dirPath)
+            .filter(file => file.endsWith('.json'))
+            .map(file => {
+                const config = JSON.parse(fs.readFileSync(path.join(dirPath, file), 'utf-8'));
+                return {
+                    ...config,
+                    movieUri: config.moviePath ? toWebviewUri(config.moviePath) : ""
+                };
+            });
+    };
+
+    // 5. BGMパス一覧（/assets/bgm/xxx.mp3 形式）
+    const getBgmPaths = (): string[] => {
+        const bgmDir = path.join(actualRoot, 'assets', 'bgm');
+        if (!fs.existsSync(bgmDir)) return [];
+        return fs.readdirSync(bgmDir)
+            .filter(f => /\.(mp3|ogg|wav)$/i.test(f))
+            .sort()
+            .map(f => `/assets/bgm/${f}`);
+    };
+
+    // 6. 背景画像パス（/assets/images/xxx.png 形式、最初の1枚）
+    const getBoardBackgroundPath = (): string => {
+        const imgDir = path.join(actualRoot, 'assets', 'images');
+        if (!fs.existsSync(imgDir)) return '';
+        const files = fs.readdirSync(imgDir)
+            .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+            .sort();
+        return files.length > 0 ? `/assets/images/${files[0]}` : '';
+    };
+
+    // 7. ラッシュ演出動画パス（サブフォルダで分類）
+    const getRushMoviePaths = (): RushMoviePaths => {
+        const moviesDir = path.join(actualRoot, 'assets', 'movies');
+        if (!fs.existsSync(moviesDir)) return { reach: [], success: [], failure: [] };
+
+        const readCategory = (subDir: string, urlPrefix: string): RushMovieEntry[] => {
+            const dir = path.join(moviesDir, subDir);
+            if (!fs.existsSync(dir)) return [];
+            return fs.readdirSync(dir)
+                .filter(f => /\.(mp4|webm|mov)$/i.test(f) && fs.statSync(path.join(dir, f)).size > 0)
+                .sort()
+                .map(f => {
+                    const base = f.replace(/\.[^.]+$/, '');
+                    const audioExt = ['.mp3', '.ogg', '.wav'].find(ext =>
+                        fs.existsSync(path.join(dir, base + ext))
+                    ) ?? null;
+                    return {
+                        video: `${urlPrefix}/${f}`,
+                        audio: audioExt ? `${urlPrefix}/${base + audioExt}` : null,
+                    };
+                });
+        };
+
+        return {
+            reach:   readCategory('reach',   '/assets/movies/reach'),
+            success: readCategory('success', '/assets/movies/success'),
+            failure: readCategory('fail',    '/assets/movies/fail'),
+        };
+    };
+
+    // 8. データの組み立て
+    return {
+        stageConfig: JSON.parse(fs.readFileSync(path.join(actualRoot, 'configs', 'stageconfig.json'), 'utf-8')),
+        assets: getAllAssetsUris(path.join(actualRoot, 'assets')),
+        normalEffects: loadEffects('normal'),
+        rushEffects: loadEffects('rush'),
+        extractedRoot: actualRoot,
+        bgmPaths: getBgmPaths(),
+        boardBackgroundPath: getBoardBackgroundPath(),
+        rushMoviePaths: getRushMoviePaths(),
+    };
+}
+</file>
+
+<file path="src/extension.ts">
+import * as vscode from 'vscode';
+import { loadPatidai } from './utils/patidaiLoader';
+import { startAssetServer, stopAssetServer } from './utils/assetServer';
+import * as path from 'path';
+import * as fs from 'fs';
+
+let isActive = false;
+let textChangeDisposable: vscode.Disposable | null = null;
+let shellExecDisposable: vscode.Disposable | null = null;
+let statusBarItem: vscode.StatusBarItem;
+
+// 登録済みのWebviewViewを全て追跡する
+const activeViews = new Set<vscode.WebviewView>();
+// selectPatidaiで開いたメインパネル（burst等のメッセージ送信先）
+let activePachinkoPanel: vscode.WebviewPanel | null = null;
+
+function getWebviewContent(): string {
+    const devServerUrl = "http://localhost:5173";
+
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #1a1a2e; }
+        iframe { width: 100%; height: 100%; border: none; }
+    </style>
+</head>
+<body>
+    <iframe src="${devServerUrl}" allow="scripts; autoplay"></iframe>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        const iframe = document.querySelector('iframe');
+
+        // Reactアプリが準備完了するまでメッセージをキューに溜める
+        let iframeReady = false;
+        let messageQueue = [];
+
+        window.addEventListener('message', (event) => {
+            if (event.source === iframe.contentWindow) {
+                // iframe（React）からのメッセージ → VS Codeへ転送
+                if (event.data?.type === 'PATIPURO_READY') {
+                    // React準備完了：キューに溜まったメッセージを一括送信
+                    iframeReady = true;
+                    messageQueue.forEach(msg => iframe.contentWindow.postMessage(msg, '*'));
+                    messageQueue = [];
+                }
+                vscode.postMessage(event.data);
+            } else {
+                // VS Codeからのメッセージ → iframeへ転送（未準備ならキュー）
+                if (iframeReady) {
+                    iframe.contentWindow.postMessage(event.data, '*');
+                } else {
+                    messageQueue.push(event.data);
+                }
+            }
+        });
+    </script>
+</body>
+</html>`;
+}
+
+// 全アクティブViewとメインパネルにメッセージを送る
+function postMessageToAll(message: object) {
+    console.log('[PatiPro] postMessageToAll:', JSON.stringify(message), '| views=', activeViews.size, '| panel=', activePachinkoPanel !== null);
+    activeViews.forEach(view => {
+        view.webview.postMessage(message);
+    });
+    activePachinkoPanel?.webview.postMessage(message);
+}
+
+
+
+class PatiProViewProvider implements vscode.WebviewViewProvider {
+    resolveWebviewView(webviewView: vscode.WebviewView) {
+        webviewView.webview.options = {
+            enableScripts: true,
+        };
+        webviewView.webview.html = getWebviewContent();
+
+        activeViews.add(webviewView);
+
+        webviewView.onDidDispose(() => {
+            activeViews.delete(webviewView);
+        });
+    }
+}
+
+/**
+ * 台を選択して読み込むメイン関数
+ */
+export async function selectPatidai(context: vscode.ExtensionContext) { // asyncを追加
+    // 1. ファイル選択ダイアログ
+    const fileUri = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: 'パチ台を読み込む',
+        filters: { 'PatiDai Files': ['patidai', 'zip'] }
+    });
+
+    if (!fileUri || fileUri.length === 0) {
+        vscode.window.showInformationMessage('台の選択がキャンセルされました');
+        return;
+    }
+
+    const selectedZipPath = fileUri[0].fsPath;
+
+    // 2. Webviewパネルの作成（メイン画面）
+    const panel = vscode.window.createWebviewPanel(
+        'pachinkoView',
+        'パチプロ演出画面',
+        vscode.ViewColumn.One,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true, // タブを切り替えても状態を維持
+            localResourceRoots: [
+                vscode.Uri.file(path.join(context.extensionPath, 'dist')),
+                context.globalStorageUri // 解凍先へのアクセスを許可
+            ]
+        }
+    );
+
+    activePachinkoPanel = panel;
+    panel.onDidDispose(() => {
+        activePachinkoPanel = null;
+    });
+
+    panel.webview.html = getWebviewContent();
+
+    // 3. データの読み込みと送信
+    try {
+        vscode.window.showInformationMessage('台を設置中...');
+        
+        // パス変換のためにpanel.webviewを渡す
+        const daiData = await loadPatidai(selectedZipPath, context, panel.webview);
+
+        // アセットサーバーを起動してファイルをHTTPで配信
+        const port = await startAssetServer(daiData.extractedRoot);
+        const assetServerUrl = `http://127.0.0.1:${port}`;
+
+        const loadDaiMessage = { command: 'LOAD_DAI', payload: { ...daiData, assetServerUrl } };
+
+        // メインパネルに送信
+        panel.webview.postMessage(loadDaiMessage);
+
+        // React側から PATIPURO_READY が来たら再送（iframeがまだ起動中だった場合のフォールバック）
+        panel.webview.onDidReceiveMessage(msg => {
+            if (msg?.type === 'PATIPURO_READY') {
+                panel.webview.postMessage(loadDaiMessage);
+            }
+        });
+
+        // サイドバーなどの他のViewにも一斉送信
+        postMessageToAll(loadDaiMessage);
+
+        vscode.window.showInformationMessage(`${daiData.stageConfig.name || "台"} の読み込みが完了しました！`);
+    } catch (error) {
+        vscode.window.showErrorMessage('台の読み込みに失敗しました: ' + error);
+    }
+}
+
+function stopPatiPro() {
+    isActive = false;
+    if (textChangeDisposable) {
+        textChangeDisposable.dispose();
+        textChangeDisposable = null;
+    }
+    if (shellExecDisposable) {
+        shellExecDisposable.dispose();
+        shellExecDisposable = null;
+    }
+    updateStatusBar();
+}
+
+function updateStatusBar() {
+    if (isActive) {
+        statusBarItem.text = '$(zap) PatiPro';
+        statusBarItem.tooltip = 'PatiPro: 動作中 (クリックで停止)';
+        statusBarItem.command = 'patipuro.stop';
+    } else {
+        statusBarItem.text = '$(circle-slash) PatiPro';
+        statusBarItem.tooltip = 'PatiPro: 停止中 (クリックで開始)';
+        statusBarItem.command = 'patipuro.start';
+    }
+}
+
+/**
+ * シェルコマンドをVSCodeタスクとして実行し、終了コードに応じて弾を発射する
+ */
+async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand' | 'testCommand') {
+    const config = vscode.workspace.getConfiguration('patipuro');
+    const defaultCmd = commandKey === 'buildCommand' ? 'npm run build' : commandKey === 'lintCommand' ? 'npm run lint' : 'npm test';
+    const cmd = config.get<string>(commandKey) ?? defaultCmd;
+    const label = commandKey === 'buildCommand' ? 'ビルド' : commandKey === 'lintCommand' ? 'Lint' : 'テスト';
+
+    const task = new vscode.Task(
+        { type: 'patipuro', command: commandKey },
+        vscode.TaskScope.Workspace,
+        label,
+        'PatiPro',
+        new vscode.ShellExecution(cmd)
+    );
+
+    const execution = await vscode.tasks.executeTask(task);
+
+    const disposable = vscode.tasks.onDidEndTaskProcess(e => {
+        if (e.execution !== execution) { return; }
+        disposable.dispose();
+
+        if (e.exitCode === 0) {
+            postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
+            vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
+        } else {
+            vscode.window.showWarningMessage(`❌ ${label}失敗... 不発`);
+        }
+    });
+}
+
+export function activate(context: vscode.ExtensionContext) {
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    updateStatusBar();
+    statusBarItem.show();
+
+    // WebviewViewProviderをサイドバーとパネル両方に登録
+    const provider = new PatiProViewProvider();
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('patipuro.sidebarView', provider),
+        vscode.window.registerWebviewViewProvider('patipuro.panelView', provider),
+    );
+
+    // 開始コマンド
+    const startCmd = vscode.commands.registerCommand('patipuro.start',async () => {
+        isActive = true;
+        await selectPatidai(context);
+
+        // 文字が追加されたときだけ発射（Backspace・削除は除外）
+        textChangeDisposable = vscode.workspace.onDidChangeTextDocument((event) => {
+            const hasInsertion = event.contentChanges.some(c => c.text.length > 0);
+            if (hasInsertion) {
+                postMessageToAll({ type: 'keypress' });
+            }
+        });
+
+        // ターミナルでのビルド・Lintコマンドを検知して発射
+        const config = vscode.workspace.getConfiguration('patipuro');
+        const buildPatterns = config.get<string[]>('buildPatterns') ?? []; //情報源を一つにするために削除
+        const lintPatterns  = config.get<string[]>('lintPatterns')  ?? [];
+        const testPatterns  = config.get<string[]>('testPatterns')  ?? [];
+
+        shellExecDisposable = vscode.window.onDidEndTerminalShellExecution(e => {
+            if (e.exitCode === undefined || e.exitCode !== 0) { return; }
+
+            const cmd = e.execution.commandLine.value;
+            const isBuild = buildPatterns.some(p => cmd.includes(p));
+            const isLint  = lintPatterns.some(p => cmd.includes(p));
+            const isTest  = testPatterns.some(p => cmd.includes(p));
+
+            if (isBuild) {
+                postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
+                vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
+            } else if (isLint) {
+                postMessageToAll({ type: 'burst', count: 10, triggerRushIfPending: true });
+                vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
+            } else if (isTest) {
+                postMessageToAll({ type: 'burst', count: 20, triggerRushIfPending: true });
+                vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
+            }
+        });
+
+        updateStatusBar();
+        vscode.window.showInformationMessage('PatiPro 開始！コードを打つたびにパチンコの弾が飛びます 🎰');
+    });
+
+    // 停止コマンド
+    const stopCmd = vscode.commands.registerCommand('patipuro.stop', () => {
+        stopPatiPro();
+        vscode.window.showInformationMessage('PatiPro 停止');
+    });
+
+    // ビルド実行コマンド
+    const runBuildCmd = vscode.commands.registerCommand('patipuro.runBuild', () => {
+        runPatiTask('buildCommand');
+    });
+
+    // Lint実行コマンド
+    const runLintCmd = vscode.commands.registerCommand('patipuro.runLint', () => {
+        runPatiTask('lintCommand');
+    });
+
+    // テスト実行コマンド
+    const runTestCmd = vscode.commands.registerCommand('patipuro.runTest', () => {
+        runPatiTask('testCommand');
+    });
+
+    context.subscriptions.push(startCmd, stopCmd, runBuildCmd, runLintCmd, runTestCmd, statusBarItem);
+}
+
+export function deactivate() {
+    stopPatiPro();
+    stopAssetServer();
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "patipuro-vscode",
+  "displayName": "PatiPro",
+  "description": "コードを打つたびにパチンコの弾が発射される",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "patipuro-sidebar",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ],
+      "panel": [
+        {
+          "id": "patipuro-panel",
+          "title": "PatiPro",
+          "icon": "icons/patipuro.svg"
+        }
+      ]
+    },
+    "views": {
+      "patipuro-sidebar": [
+        {
+          "type": "webview",
+          "id": "patipuro.sidebarView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ],
+      "patipuro-panel": [
+        {
+          "type": "webview",
+          "id": "patipuro.panelView",
+          "name": "PatiPro",
+          "icon": "icons/patipuro.svg",
+          "retainContextWhenHidden": true
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "patipuro.start",
+        "title": "PatiPro: 開始"
+      },
+      {
+        "command": "patipuro.stop",
+        "title": "PatiPro: 停止"
+      },
+      {
+        "command": "patipuro.runBuild",
+        "title": "PatiPro: ビルド実行"
+      },
+      {
+        "command": "patipuro.runLint",
+        "title": "PatiPro: Lint実行"
+      },
+      {
+        "command": "patipuro.runTest",
+        "title": "PatiPro: テスト実行"
+      }
+    ],
+    "configuration": {
+      "title": "PatiPro",
+      "properties": {
+        "patipuro.buildCommand": {
+          "type": "string",
+          "default": "npm run build",
+          "description": "PatiPro: ビルド実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.lintCommand": {
+          "type": "string",
+          "default": "npm run lint",
+          "description": "PatiPro: Lint実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.testCommand": {
+          "type": "string",
+          "default": "npm test",
+          "description": "PatiPro: テスト実行コマンド（コマンドパレットから実行する場合）"
+        },
+        "patipuro.buildPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "run build",
+            "tsc",
+            "webpack",
+            "vite build",
+            "flutter build",
+            "cargo build",
+            "go build",
+            "gradle build",
+            "gradlew build",
+            "mvn package",
+            "mvn install",
+            "swift build",
+            "xcodebuild",
+            "make",
+            "cmake --build",
+            "dotnet build"
+          ],
+          "description": "ターミナルでのビルドコマンドを検知するパターン（部分一致）"
+        },
+        "patipuro.lintPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "run lint",
+            "eslint",
+            "biome check",
+            "biome lint",
+            "deno lint",
+            "flutter analyze",
+            "dart analyze",
+            "cargo clippy",
+            "go vet",
+            "golangci-lint",
+            "pylint",
+            "flake8",
+            "ruff check",
+            "mypy",
+            "rubocop",
+            "swiftlint",
+            "ktlint",
+            "detekt",
+            "phpstan",
+            "phpcs",
+            "dotnet format --verify-no-changes"
+          ],
+          "description": "ターミナルでのLintコマンドを検知するパターン（部分一致）"
+        },
+        "patipuro.testPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "run test",
+            "jest",
+            "vitest",
+            "pytest",
+            "python -m pytest",
+            "go test",
+            "cargo test",
+            "flutter test",
+            "dotnet test",
+            "gradle test",
+            "gradlew test",
+            "mvn test",
+            "rspec",
+            "phpunit",
+            "xcodebuild test"
+          ],
+          "description": "ターミナルでのテストコマンドを検知するパターン（部分一致）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.7",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16"
+  }
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2020",
+    "outDir": "out",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", ".vscode-test"]
+}
+</file>
+
+</files>
