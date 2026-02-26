@@ -95,6 +95,10 @@ export class PegLayoutGenerator {
         // 大外の右壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 395, 190, 395, 600));
 
+        // 左うちの障害物（棒セグメントの連結）
+        const rightObstacle = this.createCurvedRail(Bodies, 180, 40, 0, 4, 3, 0);
+        bodies.push(...rightObstacle);
+
         // =========================================================
         // 8. 右打ちルート（隙間→右上→右チャンネル→メインフィールド）
         // =========================================================
@@ -105,7 +109,7 @@ export class PegLayoutGenerator {
         bodies.push(...underDome);
 
         // さぶ天井ドーム（棒セグメントの連結）
-        const subUnderDome = this.createCurvedRail(Bodies, 25, 200, -90, 15, 6, 6);
+        const subUnderDome = this.createCurvedRail(Bodies, 25, 200, -90, 15, 8, 6);
         bodies.push(...subUnderDome);
         // ② 右側チャンネル内壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 365, 190, 365, 440));

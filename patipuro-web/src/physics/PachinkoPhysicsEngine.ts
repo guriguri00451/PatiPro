@@ -138,14 +138,17 @@ export class PachinkoPhysicsEngine {
             // collisionFilter はデフォルト → 発射レーン壁・カーブレールと正しく衝突する
             render: {
                 fillStyle: '#b0b0b0' // afterRender でグラデーション描画するためベースシルバーに
+            },
+            collisionFilter: {
+                group: -1,
             }
         });
 
         // 下から上へ打ち出し
         // ラッシュ中（右打ち）は強めに発射して右チャンネルへ
         const speed = this.rushMode
-            ? 25 // 右打ち：強め（27〜29）
-            : 25 // 通常（18〜20）
+            ? 35 + Math.random() * 0.01// 右打ち：強め（27〜29）
+            : 25 + Math.random() * 0.03// 通常（18〜20）
         const dirX = 0.08;
         const dirY = -1.0;
 
@@ -230,7 +233,7 @@ export class PachinkoPhysicsEngine {
             // 右打ち：右チャンネルに到達（x > 260）するまで解除しない
             if (this.launchPhaseBalls.has(ball.id)) {
                 const shouldExit = isRushBall
-                    ? ball.position.x > 260  // 右打ち：右半分に入るまで高速維持
+                    ? ball.position.y < 160  // 右打ち：右半分に入るまで高速維持
                     : ball.position.y < 160; // 通常：上端で解除
                 if (shouldExit) this.launchPhaseBalls.delete(ball.id);
             }
