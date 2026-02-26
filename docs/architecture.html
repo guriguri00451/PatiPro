@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PatiPro — Tech Architecture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      padding: 32px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, #61dafb 0%, #1f6feb 50%, #f29111 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      color: #8b949e;
+      font-size: 13px;
+      margin-bottom: 28px;
+    }
+    .diagram-wrapper {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      overflow-x: auto;
+    }
+    .tooltip {
+      position: fixed;
+      background: #1c2128;
+      border: 1px solid #388bfd;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #e6edf3;
+      pointer-events: none;
+      display: none;
+      max-width: 280px;
+      z-index: 999;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      white-space: pre-line;
+      line-height: 1.6;
+    }
+    .tooltip.visible { display: block; }
+    .legend {
+      display: flex;
+      gap: 20px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #8b949e;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+    .section {
+      margin-top: 32px;
+    }
+    .section h2 {
+      font-size: 16px;
+      color: #e6edf3;
+      margin-bottom: 14px;
+      border-bottom: 1px solid #30363d;
+      padding-bottom: 8px;
+    }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .stack-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .stack-card .cat {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #8b949e;
+      margin-bottom: 8px;
+    }
+    .stack-item {
+      font-size: 13px;
+      color: #c9d1d9;
+      display: flex;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+    .stack-item .ver { color: #8b949e; font-size: 11px; }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #21262d;
+      font-size: 13px;
+      color: #8b949e;
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .step-num {
+      min-width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .flow-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎰 PatiPro — Tech Architecture</h1>
+  <p class="subtitle">VS Code拡張 × パチンコ物理演算エンジン × WebSocketリレー  |  生成日: 2026-02-26</p>
+
+  <div class="diagram-wrapper">
+    <svg viewBox="0 0 1400 970" width="100%" style="min-width: 960px;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Arrow markers -->
+        <marker id="arr" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#8b949e"/>
+        </marker>
+        <marker id="arr-blue" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#1f6feb"/>
+        </marker>
+        <marker id="arr-cyan" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#61dafb"/>
+        </marker>
+        <marker id="arr-orange" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#f29111"/>
+        </marker>
+        <marker id="arr-green" markerWidth="9" markerHeight="7" refX="9" refY="3.5" orient="auto">
+          <polygon points="0 0, 9 3.5, 0 7" fill="#3fb950"/>
+        </marker>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.5)"/>
+        </filter>
+      </defs>
+
+      <!-- ============================================================ -->
+      <!-- LAYER 1: VS Code Extension Host                              -->
+      <!-- ============================================================ -->
+      <rect x="20" y="20" width="640" height="415" rx="12"
+            fill="rgba(31,111,235,0.06)" stroke="#1f6feb" stroke-width="1.5"/>
+      <text x="38" y="48" fill="#1f6feb" font-size="13" font-weight="700" font-family="'Segoe UI',sans-serif">VS Code Extension Host</text>
+      <text x="38" y="65" fill="#4d8fea" font-size="11" font-family="monospace">patipuro-vscode  ·  TypeScript 5.3  ·  VS Code API 1.93+</text>
+
+      <!-- extension.ts -->
+      <g class="node"
+         data-tip="extension.ts — メインロジック&#10;• コマンドハンドラ (PatiPro: 開始/停止)&#10;• ターミナル出力監視 (build/lint/test 検知)&#10;• キーストローク イベントリスナー&#10;• WebView プロバイダ&#10;• WebSocket クライアント送信">
+        <rect x="45" y="80" width="290" height="145" rx="8"
+              fill="#0f1f3d" stroke="#1f6feb" stroke-width="1.5" filter="url(#shadow)"/>
+        <text x="65" y="105" fill="#79c0ff" font-size="14" font-weight="700" font-family="monospace">extension.ts</text>
+        <line x1="45" y1="114" x2="335" y2="114" stroke="#1f6feb" stroke-width="0.5" opacity="0.4"/>
+        <text x="65" y="132" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ Command Handler</text>
+        <text x="65" y="150" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ Terminal / Editor イベントリスナー</text>
+        <text x="65" y="168" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ WebView Provider (sidebar / panel)</text>
+        <text x="65" y="186" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ WebSocket クライアント送信</text>
+        <text x="65" y="208" fill="#4d8fea" font-size="10" font-family="monospace">VS Code API  ·  Node.js fs/path</text>
+      </g>
+
+      <!-- patidaiLoader.ts -->
+      <g class="node"
+         data-tip="patidaiLoader.ts&#10;• .pati ファイル (ZIP形式) を解凍&#10;• config.json をパースして演出定義を取得&#10;• ID → URI マッピングを生成&#10;• 解凍先: VS Code globalStorage">
+        <rect x="45" y="255" width="240" height="110" rx="8"
+              fill="#0f1f3d" stroke="#388bfd" stroke-width="1.2"/>
+        <text x="65" y="278" fill="#79c0ff" font-size="13" font-weight="600" font-family="monospace">patidaiLoader.ts</text>
+        <line x1="45" y1="286" x2="285" y2="286" stroke="#388bfd" stroke-width="0.5" opacity="0.4"/>
+        <text x="65" y="302" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ .pati (ZIP) 解凍</text>
+        <text x="65" y="320" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ config.json パース</text>
+        <text x="65" y="346" fill="#4d8fea" font-size="10" font-family="monospace">adm-zip v0.5.16</text>
+      </g>
+
+      <!-- assetServer.ts -->
+      <g class="node"
+         data-tip="assetServer.ts&#10;• 解凍済みアセットを HTTP で配信&#10;• Range リクエスト対応 (動画シーク)&#10;• MIME タイプ自動判定&#10;• ディレクトリトラバーサル防止">
+        <rect x="315" y="255" width="240" height="110" rx="8"
+              fill="#0f1f3d" stroke="#388bfd" stroke-width="1.2"/>
+        <text x="335" y="278" fill="#79c0ff" font-size="13" font-weight="600" font-family="monospace">assetServer.ts</text>
+        <line x1="315" y1="286" x2="555" y2="286" stroke="#388bfd" stroke-width="0.5" opacity="0.4"/>
+        <text x="335" y="302" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ HTTP アセット配信</text>
+        <text x="335" y="320" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ Range リクエスト対応</text>
+        <text x="335" y="346" fill="#4d8fea" font-size="10" font-family="monospace">Node.js http (標準モジュール)</text>
+      </g>
+
+      <!-- WebView indicator -->
+      <rect x="45" y="390" width="490" height="38" rx="6"
+            fill="rgba(31,111,235,0.1)" stroke="#1f6feb" stroke-dasharray="5,3" stroke-width="1"/>
+      <text x="145" y="406" fill="#79c0ff" font-size="12" font-weight="600" font-family="'Segoe UI',sans-serif">🖥  WebView  (iframe)</text>
+      <text x="145" y="421" fill="#8b949e" font-size="10" font-family="'Segoe UI',sans-serif">src="http://localhost:5173" — React App をサンドボックス実行</text>
+
+      <!-- ============================================================ -->
+      <!-- LAYER 2: WebSocket Server                                    -->
+      <!-- ============================================================ -->
+      <rect x="690" y="20" width="345" height="220" rx="12"
+            fill="rgba(0,120,212,0.07)" stroke="#0078d4" stroke-width="1.5"/>
+      <text x="708" y="48" fill="#0078d4" font-size="13" font-weight="700" font-family="'Segoe UI',sans-serif">WebSocket Server</text>
+      <text x="708" y="65" fill="#4d8fea" font-size="11" font-family="monospace">patipuro-server  ·  port 8080</text>
+
+      <g class="node"
+         data-tip="server.js&#10;• 複数クライアント接続管理&#10;• キープライブ broadcast (全クライアントへ中継)&#10;• ping/pong キープアライブ&#10;• JSON メッセージ形式: { type: 'keypress' }">
+        <rect x="710" y="80" width="305" height="135" rx="8"
+              fill="#0a1a30" stroke="#0078d4" stroke-width="1.5" filter="url(#shadow)"/>
+        <text x="730" y="105" fill="#58a6ff" font-size="13" font-weight="700" font-family="monospace">server.js</text>
+        <line x1="710" y1="113" x2="1015" y2="113" stroke="#0078d4" stroke-width="0.5" opacity="0.4"/>
+        <text x="730" y="131" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ マルチクライアント接続管理</text>
+        <text x="730" y="149" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ キープライブ broadcast</text>
+        <text x="730" y="167" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ ping/pong キープアライブ</text>
+        <text x="730" y="197" fill="#4d8fea" font-size="10" font-family="monospace">Node.js  ·  ws v8.18.0</text>
+      </g>
+
+      <!-- ============================================================ -->
+      <!-- LAYER 3: .pati Asset Package                                 -->
+      <!-- ============================================================ -->
+      <rect x="1065" y="20" width="315" height="415" rx="12"
+            fill="rgba(242,145,17,0.06)" stroke="#f29111" stroke-width="1.5"/>
+      <text x="1083" y="48" fill="#f29111" font-size="13" font-weight="700" font-family="'Segoe UI',sans-serif">.pati  Asset Package</text>
+      <text x="1083" y="65" fill="#d08000" font-size="11" font-family="monospace">カスタム演出ファイル形式 (ZIP)</text>
+
+      <!-- config.json -->
+      <g class="node"
+         data-tip="config.json — 演出定義ファイル&#10;• lottery: 抽選テーブル (当たり確率/演出パターン)&#10;• sequences: 液晶演出タイムライン定義&#10;• layers: 動画・スロット・エフェクトのレイヤー&#10;• ID ベースのリソース管理">
+        <rect x="1083" y="80" width="279" height="115" rx="8"
+              fill="#201508" stroke="#f29111" stroke-width="1.5"/>
+        <text x="1103" y="104" fill="#f0a050" font-size="13" font-weight="600" font-family="monospace">config.json</text>
+        <line x1="1083" y1="112" x2="1362" y2="112" stroke="#f29111" stroke-width="0.5" opacity="0.4"/>
+        <text x="1103" y="130" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ lottery (抽選テーブル)</text>
+        <text x="1103" y="148" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ sequences (タイムライン)</text>
+        <text x="1103" y="166" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ layers (動画/スロット/FX)</text>
+        <text x="1103" y="184" fill="#d08000" font-size="10" font-family="monospace">ID → URI マッピング</text>
+      </g>
+
+      <!-- assets/ -->
+      <rect x="1083" y="215" width="279" height="105" rx="8"
+            fill="#201508" stroke="#f29111" stroke-width="1"/>
+      <text x="1103" y="238" fill="#f0a050" font-size="13" font-weight="600" font-family="monospace">assets/</text>
+      <line x1="1083" y1="246" x2="1362" y2="246" stroke="#f29111" stroke-width="0.5" opacity="0.4"/>
+      <text x="1120" y="264" fill="#8b949e" font-size="11" font-family="monospace">├─ movies/   (.mp4)</text>
+      <text x="1120" y="282" fill="#8b949e" font-size="11" font-family="monospace">├─ images/   (.png/.jpg/.svg)</text>
+      <text x="1120" y="300" fill="#8b949e" font-size="11" font-family="monospace">└─ sounds/   (.mp3/.wav)</text>
+
+      <!-- State Machine -->
+      <rect x="1083" y="340" width="279" height="82" rx="8"
+            fill="#201508" stroke="#f29111" stroke-width="1"/>
+      <text x="1103" y="362" fill="#f0a050" font-size="12" font-weight="600" font-family="'Segoe UI',sans-serif">演出ステートマシン</text>
+      <line x1="1083" y1="370" x2="1362" y2="370" stroke="#f29111" stroke-width="0.5" opacity="0.4"/>
+      <text x="1103" y="387" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">待機 → 入賞受信 → 変動開始</text>
+      <text x="1103" y="405" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">→ リーチ → 結果表示</text>
+
+      <!-- ============================================================ -->
+      <!-- LAYER 4: Docker Compose                                      -->
+      <!-- ============================================================ -->
+      <rect x="20" y="458" width="1360" height="62" rx="10"
+            fill="rgba(0,120,212,0.05)" stroke="#0078d4" stroke-dasharray="8,4" stroke-width="1.5"/>
+      <text x="44" y="483" fill="#0078d4" font-size="13" font-weight="700" font-family="'Segoe UI',sans-serif">🐳 Docker Compose</text>
+      <text x="200" y="483" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">
+        server: node:20, port 8080
+      </text>
+      <text x="410" y="483" fill="#4d8fea" font-size="11">+</text>
+      <text x="430" y="483" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">web: node:20-slim, port 5173</text>
+      <text x="700" y="483" fill="#4d8fea" font-size="11" font-family="monospace">docker-compose up server web</text>
+      <text x="980" y="483" fill="#4d8fea" font-size="11" font-family="monospace">CHOKIDAR_USEPOLLING=true (HMR)</text>
+      <text x="44" y="508" fill="#4d8fea" font-size="10" font-family="monospace">Dockerfile: FROM node:20-slim  ·  CMD ["npm","run","dev","--","--host"]</text>
+
+      <!-- ============================================================ -->
+      <!-- LAYER 5: React Web App                                       -->
+      <!-- ============================================================ -->
+      <rect x="20" y="542" width="1360" height="410" rx="12"
+            fill="rgba(97,218,251,0.04)" stroke="#61dafb" stroke-width="1.5"/>
+      <text x="38" y="570" fill="#61dafb" font-size="13" font-weight="700" font-family="'Segoe UI',sans-serif">React Web App  (WebView / Browser)</text>
+      <text x="38" y="587" fill="#4db8d4" font-size="11" font-family="monospace">patipuro-web  ·  React 19.2  ·  TypeScript 5.9  ·  Vite 7.3</text>
+
+      <!-- Patinko-home.tsx (Main) -->
+      <g class="node"
+         data-tip="Patinko-home.tsx — メインコントローラー&#10;• shootBallRef: ボール発射関数&#10;• slotRef: NormalSlot への参照&#10;• rushModeRef: RushMode への参照&#10;• physicsEngineRef: Matter.js インスタンス&#10;• hesoCallbackRef: へそ入賞コールバック&#10;• pendingCountRef: 保留カウント管理">
+        <rect x="320" y="600" width="690" height="100" rx="8"
+              fill="#0a2535" stroke="#61dafb" stroke-width="2" filter="url(#shadow)"/>
+        <text x="490" y="625" fill="#61dafb" font-size="14" font-weight="700" font-family="monospace">Patinko-home.tsx  —  Main Controller</text>
+        <line x1="320" y1="633" x2="1010" y2="633" stroke="#61dafb" stroke-width="0.5" opacity="0.4"/>
+        <text x="340" y="651" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ shootBallRef  ▸ slotRef  ▸ rushModeRef  ▸ physicsEngineRef</text>
+        <text x="340" y="669" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ hesoCallbackRef  ▸ pendingCountRef  ▸ WebSocket listener</text>
+        <text x="340" y="688" fill="#4db8d4" font-size="10" font-family="monospace">useState  ·  useRef  ·  useCallback  ·  useEffect</text>
+      </g>
+
+      <!-- PachinkoPhysicsEngine -->
+      <g class="node"
+         data-tip="PachinkoPhysicsEngine.ts&#10;• Matter.js で玉の物理演算&#10;• 釘 (Peg) との衝突判定&#10;• へそ (Heso) 入賞検出&#10;• PegStateManager: 釘劣化シミュレーション&#10;• PegLayoutGenerator: リアルな釘配置生成">
+        <rect x="40" y="730" width="265" height="150" rx="8"
+              fill="#0a2535" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="60" y="754" fill="#56d364" font-size="13" font-weight="700" font-family="monospace">PhysicsEngine</text>
+        <line x1="40" y1="762" x2="305" y2="762" stroke="#3fb950" stroke-width="0.5" opacity="0.4"/>
+        <text x="60" y="780" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 玉の物理演算</text>
+        <text x="60" y="798" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 釘衝突判定</text>
+        <text x="60" y="816" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ へそ入賞検出</text>
+        <text x="60" y="834" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ PegStateManager</text>
+        <text x="60" y="862" fill="#3fb950" font-size="10" font-family="monospace">Matter.js v0.20.0</text>
+      </g>
+
+      <!-- NormalSlot / SlotMachine -->
+      <g class="node"
+         data-tip="NormalSlot.tsx + SlotMachine.tsx&#10;• 3リール回転演出&#10;• 抽選ロジック (1/81 確率)&#10;• 変動パターン管理&#10;• mp4 動画演出&#10;• useImperativeHandle で外部制御">
+        <rect x="335" y="730" width="265" height="150" rx="8"
+              fill="#0a2535" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="355" y="754" fill="#56d364" font-size="13" font-weight="700" font-family="monospace">NormalSlot</text>
+        <line x1="335" y1="762" x2="600" y2="762" stroke="#3fb950" stroke-width="0.5" opacity="0.4"/>
+        <text x="355" y="780" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 3リール回転演出</text>
+        <text x="355" y="798" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 抽選ロジック (1/81)</text>
+        <text x="355" y="816" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 変動パターン管理</text>
+        <text x="355" y="834" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ mp4 動画演出</text>
+        <text x="355" y="862" fill="#3fb950" font-size="10" font-family="monospace">React forwardRef / useImperativeHandle</text>
+      </g>
+
+      <!-- RushMode -->
+      <g class="node"
+         data-tip="RushMode.tsx&#10;• ボーナス時の演出制御&#10;• 右打ちモード切替&#10;• ラッシュ中の動画レイヤー合成&#10;• MoviePaths による動画管理">
+        <rect x="630" y="730" width="235" height="150" rx="8"
+              fill="#0a2535" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="650" y="754" fill="#56d364" font-size="13" font-weight="700" font-family="monospace">RushMode</text>
+        <line x1="630" y1="762" x2="865" y2="762" stroke="#3fb950" stroke-width="0.5" opacity="0.4"/>
+        <text x="650" y="780" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ ボーナス演出制御</text>
+        <text x="650" y="798" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 右打ちモード切替</text>
+        <text x="650" y="816" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 動画レイヤー合成</text>
+        <text x="650" y="834" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ MoviePaths 管理</text>
+        <text x="650" y="862" fill="#3fb950" font-size="10" font-family="monospace">React forwardRef</text>
+      </g>
+
+      <!-- BgmPlayer -->
+      <g class="node"
+         data-tip="BgmPlayer.tsx&#10;• BGM 再生・停止制御&#10;• 音楽トラック切り替え&#10;• 音量管理&#10;• .mp3 ファイル (public/bgm/)">
+        <rect x="895" y="730" width="215" height="150" rx="8"
+              fill="#0a2535" stroke="#3fb950" stroke-width="1.5"/>
+        <text x="915" y="754" fill="#56d364" font-size="13" font-weight="700" font-family="monospace">BgmPlayer</text>
+        <line x1="895" y1="762" x2="1110" y2="762" stroke="#3fb950" stroke-width="0.5" opacity="0.4"/>
+        <text x="915" y="780" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ BGM 再生・停止</text>
+        <text x="915" y="798" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ トラック切り替え</text>
+        <text x="915" y="816" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ 音量管理</text>
+        <text x="915" y="834" fill="#8b949e" font-size="11" font-family="'Segoe UI',sans-serif">▸ public/bgm/*.mp3</text>
+        <text x="915" y="862" fill="#3fb950" font-size="10" font-family="monospace">HTML5 Audio API</text>
+      </g>
+
+      <!-- Build info box (right side of React layer) -->
+      <rect x="1140" y="600" width="225" height="275" rx="8"
+            fill="rgba(97,218,251,0.05)" stroke="#61dafb" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="1160" y="625" fill="#61dafb" font-size="12" font-weight="600" font-family="'Segoe UI',sans-serif">ビルド / 開発</text>
+      <line x1="1140" y1="633" x2="1365" y2="633" stroke="#61dafb" stroke-width="0.5" opacity="0.3"/>
+      <text x="1160" y="652" fill="#8b949e" font-size="11" font-family="monospace">vite dev (HMR)</text>
+      <text x="1160" y="670" fill="#8b949e" font-size="11" font-family="monospace">vite build → dist/</text>
+      <text x="1160" y="688" fill="#8b949e" font-size="11" font-family="monospace">eslint</text>
+      <text x="1160" y="718" fill="#61dafb" font-size="12" font-weight="600" font-family="'Segoe UI',sans-serif">状態管理</text>
+      <line x1="1140" y1="726" x2="1365" y2="726" stroke="#61dafb" stroke-width="0.5" opacity="0.3"/>
+      <text x="1160" y="744" fill="#8b949e" font-size="11" font-family="monospace">React Hooks</text>
+      <text x="1160" y="762" fill="#8b949e" font-size="11" font-family="monospace">useRef (game state)</text>
+      <text x="1160" y="780" fill="#8b949e" font-size="11" font-family="monospace">useState (UI)</text>
+      <text x="1160" y="810" fill="#61dafb" font-size="12" font-weight="600" font-family="'Segoe UI',sans-serif">DB / ストレージ</text>
+      <line x1="1140" y1="818" x2="1365" y2="818" stroke="#61dafb" stroke-width="0.5" opacity="0.3"/>
+      <text x="1160" y="836" fill="#f29111" font-size="11" font-family="monospace">DB なし</text>
+      <text x="1160" y="854" fill="#8b949e" font-size="11" font-family="monospace">メモリのみ</text>
+      <text x="1160" y="872" fill="#8b949e" font-size="11" font-family="monospace">globalStorage (.pati)</text>
+
+      <!-- ============================================================ -->
+      <!-- DATA FLOW ARROWS                                             -->
+      <!-- ============================================================ -->
+
+      <!-- [1] extension.ts → WebSocket Server (ws://) -->
+      <line x1="335" y1="155" x2="710" y2="155"
+            stroke="#0078d4" stroke-width="2" marker-end="url(#arr-blue)"/>
+      <!-- reverse dashed -->
+      <line x1="710" y1="162" x2="335" y2="162"
+            stroke="#0078d4" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.5" marker-end="url(#arr-blue)"/>
+      <rect x="436" y="138" width="195" height="18" rx="3" fill="#0d1117"/>
+      <text x="440" y="151" fill="#0078d4" font-size="11" font-family="'Segoe UI',sans-serif">ws://localhost:8080  (JSON)</text>
+
+      <!-- [2] extension.ts → patidaiLoader -->
+      <line x1="190" y1="225" x2="190" y2="255"
+            stroke="#388bfd" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+      <!-- [3] extension.ts → assetServer (diagonal) -->
+      <path d="M 335,200 Q 435,235 435,255"
+            stroke="#388bfd" stroke-width="1.5" fill="none" marker-end="url(#arr-blue)"/>
+
+      <!-- [4] patidaiLoader → assetServer (horizontal) -->
+      <line x1="285" y1="308" x2="315" y2="308"
+            stroke="#388bfd" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+      <rect x="286" y="294" width="26" height="14" rx="3" fill="#0d1117"/>
+      <text x="288" y="305" fill="#388bfd" font-size="9" font-family="monospace">解凍</text>
+
+      <!-- [5] patidaiLoader ← .pati file (curved, from right) -->
+      <path d="M 1065,140 C 780,140 630,310 285,305"
+            stroke="#f29111" stroke-width="1.5" stroke-dasharray="6,3" fill="none" marker-end="url(#arr-orange)"/>
+      <rect x="598" y="192" width="100" height="16" rx="3" fill="#0d1117"/>
+      <text x="601" y="204" fill="#f29111" font-size="10" font-family="monospace">.pati 読込</text>
+
+      <!-- [6] assetServer → React App (vertical, HTTP) -->
+      <line x1="450" y1="365" x2="450" y2="542"
+            stroke="#f29111" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arr-orange)"/>
+      <rect x="456" y="442" width="130" height="18" rx="3" fill="#0d1117"/>
+      <text x="460" y="455" fill="#f29111" font-size="10" font-family="'Segoe UI',sans-serif">HTTP (アセット配信)</text>
+
+      <!-- [7] WebSocket Server → React App (vertical) -->
+      <line x1="862" y1="240" x2="862" y2="542"
+            stroke="#0078d4" stroke-width="2" marker-end="url(#arr-blue)"/>
+      <rect x="714" y="352" width="235" height="18" rx="3" fill="#0d1117"/>
+      <text x="718" y="365" fill="#0078d4" font-size="11" font-family="'Segoe UI',sans-serif">WebSocket broadcast (JSON)</text>
+
+      <!-- [8] extension.ts → WebView (downward) -->
+      <path d="M 290,390 L 290,428"
+            stroke="#1f6feb" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-blue)"/>
+
+      <!-- [9] Patinko-home → PhysicsEngine -->
+      <path d="M 395,700 L 240,730"
+            stroke="#61dafb" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+
+      <!-- [10] Patinko-home → NormalSlot -->
+      <line x1="500" y1="700" x2="468" y2="730"
+            stroke="#61dafb" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+
+      <!-- [11] Patinko-home → RushMode -->
+      <line x1="720" y1="700" x2="747" y2="730"
+            stroke="#61dafb" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+
+      <!-- [12] Patinko-home → BgmPlayer -->
+      <path d="M 900,700 L 1003,730"
+            stroke="#61dafb" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+
+      <!-- [13] PhysicsEngine → NormalSlot (heso callback) -->
+      <path d="M 305,810 Q 320,810 335,810"
+            stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-green)"/>
+      <rect x="296" y="796" width="38" height="14" rx="3" fill="#0d1117"/>
+      <text x="299" y="807" fill="#3fb950" font-size="9" font-family="monospace">へそ</text>
+
+      <!-- ============================================================ -->
+      <!-- STEP INDICATORS                                              -->
+      <!-- ============================================================ -->
+      <!-- Step 1: keypress -->
+      <circle cx="530" cy="155" r="11" fill="#0078d4" opacity="0.9" filter="url(#glow)"/>
+      <text x="526" y="159" fill="white" font-size="11" font-weight="700" font-family="'Segoe UI',sans-serif">1</text>
+
+      <!-- Step 2: broadcast -->
+      <circle cx="870" cy="390" r="11" fill="#0078d4" opacity="0.9" filter="url(#glow)"/>
+      <text x="866" y="394" fill="white" font-size="11" font-weight="700" font-family="'Segoe UI',sans-serif">2</text>
+
+      <!-- Step 3: React receives -->
+      <circle cx="665" cy="648" r="11" fill="#61dafb" opacity="0.9"/>
+      <text x="661" y="652" fill="#0d1117" font-size="11" font-weight="700" font-family="'Segoe UI',sans-serif">3</text>
+
+      <!-- Step 4: physics / slot -->
+      <circle cx="172" cy="726" r="11" fill="#3fb950" opacity="0.9"/>
+      <text x="168" y="730" fill="white" font-size="11" font-weight="700" font-family="'Segoe UI',sans-serif">4</text>
+
+    </svg>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#1f6feb;"></div>VS Code Extension
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#0078d4;"></div>WebSocket Server
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#61dafb;"></div>React Web App
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#f29111;"></div>.pati アセット
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#3fb950;"></div>ゲームロジック
+    </div>
+    <div class="legend-item" style="margin-left:8px; color:#8b949e;">
+      ━━ 通常接続 &nbsp;╌╌ 非同期 / オプション
+    </div>
+  </div>
+
+  <!-- Data Flow Section -->
+  <div class="section">
+    <h2>🔄 データフロー</h2>
+    <div class="flow-box">
+      <div class="flow-step">
+        <div class="step-num" style="background:#0078d4; color:white;">1</div>
+        <div>開発者がVS Codeでキーを打つ → <strong style="color:#c9d1d9;">extension.ts</strong> がキープライブイベントを検出</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#0078d4; color:white;">2</div>
+        <div>WebSocket で <strong style="color:#c9d1d9;">server.js</strong> にイベント送信 → 全クライアントへ broadcast（JSON: { type: 'keypress' }）</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#61dafb; color:#0d1117;">3</div>
+        <div><strong style="color:#c9d1d9;">Patinko-home.tsx</strong> がイベント受信 → physicsEngine.shootBall() でパチンコ玉を発射</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#3fb950; color:white;">4</div>
+        <div><strong style="color:#c9d1d9;">Matter.js</strong> 物理演算 → へそ入賞検出 → <strong style="color:#c9d1d9;">NormalSlot.startSlot()</strong> でスロット回転</div>
+      </div>
+      <div class="flow-step">
+        <div class="step-num" style="background:#3fb950; color:white;">5</div>
+        <div>抽選結果により 通常 / リーチ / 大当たり 分岐 → <strong style="color:#c9d1d9;">RushMode</strong> 起動 または 通常変動継続 → <strong style="color:#c9d1d9;">BgmPlayer</strong> で演出音楽</div>
+      </div>
+      <div class="flow-step" style="border:none;">
+        <div class="step-num" style="background:#f29111; color:white;">+</div>
+        <div>ユーザーが <strong style="color:#c9d1d9;">.pati</strong> ファイルを配置 → <strong style="color:#c9d1d9;">patidaiLoader</strong> が ZIP 解凍 → <strong style="color:#c9d1d9;">assetServer</strong> が HTTP で React へ動画・音声を配信</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Stack Section -->
+  <div class="section">
+    <h2>📦 Tech Stack</h2>
+    <div class="stack-grid">
+      <div class="stack-card">
+        <div class="cat">Frontend</div>
+        <div class="stack-item">React <span class="ver">19.2.0</span></div>
+        <div class="stack-item">TypeScript <span class="ver">5.9.3</span></div>
+        <div class="stack-item">Vite <span class="ver">7.3.1</span></div>
+        <div class="stack-item">@vitejs/plugin-react <span class="ver">5.1.1</span></div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">Physics Engine</div>
+        <div class="stack-item">Matter.js <span class="ver">0.20.0</span></div>
+        <div class="stack-item" style="color:#8b949e; font-size:12px;">玉・釘・へそ の物理演算</div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">WebSocket Server</div>
+        <div class="stack-item">Node.js <span class="ver">20</span></div>
+        <div class="stack-item">ws <span class="ver">8.18.0</span></div>
+        <div class="stack-item" style="color:#8b949e; font-size:12px;">port 8080</div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">VS Code Extension</div>
+        <div class="stack-item">VS Code API <span class="ver">1.93+</span></div>
+        <div class="stack-item">TypeScript <span class="ver">5.3.0</span></div>
+        <div class="stack-item">adm-zip <span class="ver">0.5.16</span></div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">Infra</div>
+        <div class="stack-item">Docker</div>
+        <div class="stack-item">Docker Compose</div>
+        <div class="stack-item" style="color:#8b949e; font-size:12px;">node:20-slim image</div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">CI / CD</div>
+        <div class="stack-item" style="color:#8b949e;">GitHub Actions</div>
+        <div class="stack-item" style="color:#f29111; font-size:12px;">未設定</div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">Asset Format</div>
+        <div class="stack-item">.pati <span class="ver">(ZIP)</span></div>
+        <div class="stack-item">config.json</div>
+        <div class="stack-item" style="color:#8b949e; font-size:12px;">mp4 / mp3 / png</div>
+      </div>
+      <div class="stack-card">
+        <div class="cat">DB / State</div>
+        <div class="stack-item" style="color:#f29111;">DB なし</div>
+        <div class="stack-item">React Hooks</div>
+        <div class="stack-item" style="color:#8b949e; font-size:12px;">メモリのみ (ステートレス)</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px; color:#484f58; font-size:11px; text-align:right;">
+    自動生成: Claude Code · tech-architecture-diagram · 2026-02-26
+  </div>
+
+  <!-- Tooltip element -->
+  <div id="tooltip" class="tooltip"></div>
+
+  <script>
+    const tooltip = document.getElementById('tooltip');
+    document.querySelectorAll('[data-tip]').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('mousemove', e => {
+        tooltip.textContent = el.dataset.tip;
+        tooltip.classList.add('visible');
+        tooltip.style.left = (e.clientX + 18) + 'px';
+        tooltip.style.top  = (e.clientY - 10) + 'px';
+      });
+      el.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    });
+  </script>
+</body>
+</html>
