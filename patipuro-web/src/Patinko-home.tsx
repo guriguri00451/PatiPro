@@ -138,7 +138,6 @@ const Pachinko: React.FC = () => {
         });
 
         // 2. 静的オブジェクト（壁・釘）の作成
-        const ground = Bodies.rectangle(BOARD_WIDTH / 2, 610, 410, 60, { isStatic: true });
         const leftWall = Bodies.rectangle(-10, 300, 20, 600, { isStatic: true });
         const rightWall = Bodies.rectangle(410, 300, 20, 600, { isStatic: true });
         
@@ -148,7 +147,7 @@ const Pachinko: React.FC = () => {
         physicsEngine.registerMonitorSensor(centerMonitorSensor);
 
         World.add(engine.world, [
-            ground, leftWall, rightWall, 
+            leftWall, rightWall,
             ...pegs,
             centerMonitorSensor
         ]);
