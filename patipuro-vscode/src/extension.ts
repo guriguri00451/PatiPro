@@ -212,7 +212,8 @@ async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand' | 'testCom
             postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
             vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
         } else {
-            vscode.window.showWarningMessage(`❌ ${label}失敗... 不発`);
+            postMessageToAll({ type: 'reach' });
+            vscode.window.showWarningMessage(`❌ ${label}失敗... リーチ！`);
         }
     });
 }
@@ -249,22 +250,29 @@ export function activate(context: vscode.ExtensionContext) {
         const testPatterns  = config.get<string[]>('testPatterns')  ?? [];
 
         shellExecDisposable = vscode.window.onDidEndTerminalShellExecution(e => {
-            if (e.exitCode === undefined || e.exitCode !== 0) { return; }
+            if (e.exitCode === undefined) { return; }
 
             const cmd = e.execution.commandLine.value;
             const isBuild = buildPatterns.some(p => cmd.includes(p));
             const isLint  = lintPatterns.some(p => cmd.includes(p));
             const isTest  = testPatterns.some(p => cmd.includes(p));
 
-            if (isBuild) {
-                postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
-                vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
-            } else if (isLint) {
-                postMessageToAll({ type: 'burst', count: 10, triggerRushIfPending: true });
-                vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
-            } else if (isTest) {
-                postMessageToAll({ type: 'burst', count: 20, triggerRushIfPending: true });
-                vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
+            if (!isBuild && !isLint && !isTest) { return; }
+
+            if (e.exitCode === 0) {
+                if (isBuild) {
+                    postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
+                    vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
+                } else if (isLint) {
+                    postMessageToAll({ type: 'burst', count: 10, triggerRushIfPending: true });
+                    vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
+                } else if (isTest) {
+                    postMessageToAll({ type: 'burst', count: 20, triggerRushIfPending: true });
+                    vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
+                }
+            } else {
+                postMessageToAll({ type: 'reach' });
+                vscode.window.showWarningMessage('❌ 失敗... リーチ！');
             }
         });
 
