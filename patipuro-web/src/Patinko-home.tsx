@@ -4,6 +4,7 @@ import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './phy
 import { RushMode, RushModeHandle, MoviePaths } from './components/RushMode';
 import { NormalSlot, NormalSlotHandle } from './components/NormalSlot';
 import { BgmPlayer } from './components/BgmPlayer';
+import { triggerUnlock } from './utils/audioUnlock';
 
 const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
@@ -228,6 +229,9 @@ const Pachinko: React.FC = () => {
 
             // 盤面上のクリックのみ発射
             if (!sceneRef.current?.contains(target)) return;
+
+            // 最初のクリックで音声autoplayポリシーをアンロック
+            triggerUnlock();
 
             startShooting();
         };
@@ -530,15 +534,34 @@ useEffect(() => {
                         </div>
                     </div>
 
-                    {/* 演出動画オーバーレイ（物理演算レイヤーの下） */}
+                    {/* 演出動画オーバーレイ（物理演算レイヤーの上に配置、要素単位で制御） */}
                     <div style={{
                         position: 'absolute',
                         top: 150,
                         left: 45,
                         pointerEvents: 'none',
-                        zIndex: 1,
+                        zIndex: 3,
                     }}>
-                        <NormalSlot ref={slotRef} moviePaths={rushMovies} onResult={handleSlotResult} />
+                        <div style={{ display: isRushOpen ? 'none' : 'block' }}>
+                            <NormalSlot ref={slotRef} moviePaths={rushMovies} onResult={handleSlotResult} />
+                        </div>
+                        <RushMode
+                            ref={rushModeRef}
+                            isOpen={isRushOpen}
+                            maxSpins={RUSH_MAX_SPINS}
+                            moviePaths={rushMovies}
+                            onSuccess={() => {
+                                for (let i = 0; i < 15; i++) {
+                                    setTimeout(() => shootBallRef.current(), i * 80);
+                                }
+                            }}
+                            onRushEnd={() => {
+                                console.log("ラッシュ終了！");
+                                setIsRushOpen(false);
+                                hadPendingRef.current = false;
+                                physicsEngineRef.current.setRushMode(false); // 右打ち解除
+                            }}
+                        />
                     </div>
 
                     {/* 保留ランプ */}
@@ -679,23 +702,6 @@ useEffect(() => {
                     </div>
                 </div>
             )}
-            <RushMode
-                ref={rushModeRef}
-                isOpen={isRushOpen}
-                maxSpins={RUSH_MAX_SPINS}
-                moviePaths={rushMovies}
-                onSuccess={() => {
-                    for (let i = 0; i < 15; i++) {
-                        setTimeout(() => shootBallRef.current(), i * 80);
-                    }
-                }}
-                onRushEnd={() => {
-                    console.log("ラッシュ終了！");
-                    setIsRushOpen(false);
-                    hadPendingRef.current = false;
-                    physicsEngineRef.current.setRushMode(false); // 右打ち解除
-                }}
-            />
         </div>
     );
 };

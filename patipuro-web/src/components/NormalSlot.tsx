@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { MovieEntry, MoviePaths } from './RushMode';
+import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
 
 // ---- 確率定数 ----
 // スロットマシン（9択×3リール）と同じ確率を再現:
@@ -40,6 +41,7 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
   const [currentEntry, setCurrentEntry] = useState<MovieEntry | null>(null);
   const [spinKey, setSpinKey] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [waitingForClick, setWaitingForClick] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const spinResultRef = useRef<SpinResult>('failure');
@@ -48,6 +50,17 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
 
   useEffect(() => { moviePathsRef.current = moviePaths; }, [moviePaths]);
   useEffect(() => { onResultRef.current = onResult; }, [onResult]);
+
+  // autoplayポリシー対策: 親コンポーネントのクリックでアンロックされたら audio を warm-up
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    onUnlock(() => {
+      audio.muted = true;
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      audio.play().then(() => { audio.pause(); audio.muted = false; }).catch(() => { audio.muted = false; });
+    });
+  }, []);
 
   const stopAudio = useCallback(() => {
     const audio = audioRef.current;
@@ -79,13 +92,27 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
     setCurrentEntry(entry);
     setSpinKey(k => k + 1);
     setIsVisible(true);
+    setWaitingForClick(true);
   }, [stopAudio]);
 
   useImperativeHandle(ref, () => ({ spin }));
 
+  // 演出開始前のクリックオーバーレイ: ユーザージェスチャー内で直接 audio.play() を呼ぶ
+  const handleOverlayClick = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && currentEntry?.audio) {
+      audio.src = currentEntry.audio;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+    triggerUnlock();
+    setWaitingForClick(false);
+  }, [currentEntry]);
+
   const handleVideoPlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !currentEntry?.audio) return;
+    if (!audio.paused) return; // オーバーレイクリックですでに再生中
     audio.src = currentEntry.audio;
     audio.currentTime = 0;
     audio.play().catch(() => { });
@@ -110,19 +137,43 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
         borderRadius: 8,
         overflow: 'hidden',
         boxShadow: '0 0 20px rgba(0,0,0,0.8)',
+        pointerEvents: 'none',
       }}
     >
       <audio ref={audioRef} />
-      <video
-        key={spinKey}
-        src={currentEntry.video}
-        autoPlay
-        muted
-        playsInline
-        onPlay={handleVideoPlay}
-        onEnded={handleVideoEnded}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
+      {waitingForClick ? (
+        <div
+          onClick={handleOverlayClick}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            background: 'rgba(0, 0, 0, 0.82)',
+            color: '#fff',
+            gap: 10,
+            pointerEvents: 'auto',
+            userSelect: 'none',
+          }}
+        >
+          <div style={{ fontSize: 32 }}>▶</div>
+          <div style={{ fontSize: 13, letterSpacing: 2 }}>タップして演出開始</div>
+        </div>
+      ) : (
+        <video
+          key={spinKey}
+          src={currentEntry.video}
+          autoPlay
+          muted
+          playsInline
+          onPlay={handleVideoPlay}
+          onEnded={handleVideoEnded}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+        />
+      )}
     </div>
   );
 });
