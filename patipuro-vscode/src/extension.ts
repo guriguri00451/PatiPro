@@ -11,6 +11,8 @@ let statusBarItem: vscode.StatusBarItem;
 
 // 登録済みのWebviewViewを全て追跡する
 const activeViews = new Set<vscode.WebviewView>();
+// selectPatidaiで開いたメインパネル（burst等のメッセージ送信先）
+let activePachinkoPanel: vscode.WebviewPanel | null = null;
 
 function getWebviewContent(): string {
     const devServerUrl = "http://localhost:5173";
@@ -60,11 +62,13 @@ function getWebviewContent(): string {
 </html>`;
 }
 
-// 全アクティブViewにメッセージを送る
+// 全アクティブViewとメインパネルにメッセージを送る
 function postMessageToAll(message: object) {
+    console.log('[PatiPro] postMessageToAll:', JSON.stringify(message), '| views=', activeViews.size, '| panel=', activePachinkoPanel !== null);
     activeViews.forEach(view => {
         view.webview.postMessage(message);
     });
+    activePachinkoPanel?.webview.postMessage(message);
 }
 
 
@@ -116,6 +120,11 @@ export async function selectPatidai(context: vscode.ExtensionContext) { // async
             ]
         }
     );
+
+    activePachinkoPanel = panel;
+    panel.onDidDispose(() => {
+        activePachinkoPanel = null;
+    });
 
     panel.webview.html = getWebviewContent();
 
@@ -200,7 +209,7 @@ async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand' | 'testCom
         disposable.dispose();
 
         if (e.exitCode === 0) {
-            postMessageToAll({ type: 'burst', count: 15 });
+            postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
             vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
         } else {
             vscode.window.showWarningMessage(`❌ ${label}失敗... 不発`);
@@ -248,13 +257,13 @@ export function activate(context: vscode.ExtensionContext) {
             const isTest  = testPatterns.some(p => cmd.includes(p));
 
             if (isBuild) {
-                postMessageToAll({ type: 'burst', count: 15 });
+                postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
                 vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
             } else if (isLint) {
-                postMessageToAll({ type: 'burst', count: 10 });
+                postMessageToAll({ type: 'burst', count: 10, triggerRushIfPending: true });
                 vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
             } else if (isTest) {
-                postMessageToAll({ type: 'burst', count: 20 });
+                postMessageToAll({ type: 'burst', count: 20, triggerRushIfPending: true });
                 vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
             }
         });

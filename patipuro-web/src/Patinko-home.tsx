@@ -61,10 +61,16 @@ const Pachinko: React.FC = () => {
     const pendingCountRef = useRef<number>(0);
     // スロット回転中フラグ（コールバック内のみ参照）
     const isSpinningRef = useRef<boolean>(false);
+    // 「ビルド完了までに保留があった」ことを記憶するフラグ
+    const hadPendingRef = useRef<boolean>(false);
     // RefとStateを同時更新するヘルパー
     const setPending = (count: number) => {
         pendingCountRef.current = count;
         setPendingCount(count);
+        if (count > 0) {
+            hadPendingRef.current = true;
+            console.log('[PatiPro] setPending: count=', count, 'hadPendingRef=true');
+        }
     };
 
     // 右打ちへそコールバックを設定
@@ -81,12 +87,15 @@ const Pachinko: React.FC = () => {
             if (!isSpinningRef.current) {
                 // 未回転 → 即座にspin（保留には積まない）
                 isSpinningRef.current = true;
+                console.log('[PatiPro] ヘそ入賞 → 即スピン (spinning=false)');
                 slotRef.current?.spin();
             } else if (pendingCountRef.current < 5) {
                 // 回転中 & 保留に空きあり → 保留+1
+                console.log('[PatiPro] ヘそ入賞 → 保留+1 (spinning=true, pending=', pendingCountRef.current, ')');
                 setPending(pendingCountRef.current + 1);
+            } else {
+                console.log('[PatiPro] ヘそ入賞 → 無視 (pending満タン)');
             }
-            // 回転中 & 保留5個満タン → 無視
         };
     }, []); // Refとstableセッターのみ使用するので依存配列は []
 
@@ -260,6 +269,21 @@ const Pachinko: React.FC = () => {
                 const count = Math.min(Math.max(1, msg.count), 50);
                 for (let i = 0; i < count; i++) {
                     setTimeout(() => shootBallRef.current(), i * 80);
+                }
+                console.log('[PatiPro] burst受信:', {
+                    triggerRushIfPending: msg.triggerRushIfPending,
+                    pendingCountRef: pendingCountRef.current,
+                    hadPendingRef: hadPendingRef.current,
+                    isSpinning: isSpinningRef.current,
+                });
+                // ビルド/テスト成功時、保留があった（or今もある）場合にラッシュ突入
+                if (msg.triggerRushIfPending && (pendingCountRef.current > 0 || hadPendingRef.current)) {
+                    hadPendingRef.current = false;
+                    console.log('[PatiPro] → ラッシュ突入！');
+                    setIsRushOpen(true);
+                    physicsEngineRef.current.setRushMode(true);
+                } else {
+                    console.log('[PatiPro] → ラッシュ条件不成立');
                 }
             } else if (msg.command === 'LOAD_DAI') {
                 const serverUrl: string = msg.payload?.assetServerUrl ?? '';
@@ -655,6 +679,7 @@ useEffect(() => {
                 onRushEnd={() => {
                     console.log("ラッシュ終了！");
                     setIsRushOpen(false);
+                    hadPendingRef.current = false;
                     physicsEngineRef.current.setRushMode(false); // 右打ち解除
                 }}
             />
