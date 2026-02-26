@@ -10,6 +10,8 @@ export class PachinkoPhysicsEngine {
     private engine: Matter.Engine;
     private pegManager: PegStateManager;
     private hesoManager: HesoManager;
+    private rushHesoManager: HesoManager;
+    private rushHesoCallback: (() => void) | null = null;
     private balls: Set<Matter.Body> = new Set();
     private monitorSensorIds: Set<number> = new Set();
     private ballInMonitorZone: Set<number> = new Set();
@@ -39,6 +41,14 @@ export class PachinkoPhysicsEngine {
 
         this.pegManager = new PegStateManager(this.engine);
         this.hesoManager = new HesoManager(onHesoEntered ?? (() => {}));
+        this.rushHesoManager = new HesoManager(
+            () => { this.rushHesoCallback?.(); },
+            {
+                x:      PHYSICS_CONFIG.RUSH_HESO_X,
+                y:      PHYSICS_CONFIG.RUSH_HESO_Y,
+                radius: PHYSICS_CONFIG.RUSH_HESO_RADIUS,
+            }
+        );
     }
 
     /**
@@ -100,6 +110,13 @@ export class PachinkoPhysicsEngine {
      */
     setHesoCallback(cb: (ball: Matter.Body) => void): void {
         this.hesoManager = new HesoManager(cb);
+    }
+
+    /**
+     * 右打ちへそのコールバックを設定
+     */
+    setRushHesoCallback(cb: () => void): void {
+        this.rushHesoCallback = cb;
     }
 
     /**
@@ -260,6 +277,12 @@ export class PachinkoPhysicsEngine {
         // へそに入った玉を検知して削除
         const hesoEntered = this.hesoManager.checkBalls(this.balls);
         hesoEntered.forEach((ball) => this.removeBall(ball));
+
+        // 右打ちへそ判定（rushMode 時のみ）
+        if (this.rushMode) {
+            const rushEntered = this.rushHesoManager.checkBalls(this.balls);
+            rushEntered.forEach((ball) => this.removeBall(ball));
+        }
     }
 
     /**

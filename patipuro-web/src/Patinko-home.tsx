@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import { PachinkoPhysicsEngine, PegLayoutGenerator, PHYSICS_CONFIG } from './physics';
-import { RushMode, MoviePaths } from './components/RushMode';
+import { RushMode, RushModeHandle, MoviePaths } from './components/RushMode';
 import { SlotMachine, SlotMachineHandle } from './components/SlotMachine';
 import { BgmPlayer } from './components/BgmPlayer';
 
@@ -17,6 +17,8 @@ const Pachinko: React.FC = () => {
     const shootBallRef = useRef<() => void>(() => {});
     // スロットマシンへの参照
     const slotRef = useRef<SlotMachineHandle>(null);
+    // RushMode への参照
+    const rushModeRef = useRef<RushModeHandle>(null);
     // へそコールバックを安定参照で保持（初期化後に更新するため）
     const hesoCallbackRef = useRef<(ball: Matter.Body) => void>(() => {});
     // 物理エンジン（ラッパー経由でhesoCallbackRefを呼ぶ）
@@ -64,6 +66,14 @@ const Pachinko: React.FC = () => {
         pendingCountRef.current = count;
         setPendingCount(count);
     };
+
+    // 右打ちへそコールバックを設定
+    useEffect(() => {
+        physicsEngineRef.current.setRushHesoCallback(() => {
+            rushModeRef.current?.addSpins(PHYSICS_CONFIG.RUSH_HESO_SPIN_BONUS);
+            setWinCount(prev => prev + 1);
+        });
+    }, []);
 
     // へそコールバックをslotRefと接続
     useEffect(() => {
@@ -527,6 +537,34 @@ useEffect(() => {
                         })}
                     </div>
 
+                    {/* 右打ちへそUI（縦棒2本・ラッシュ中のみ表示） */}
+                    {isRushOpen && (
+                        <div style={{
+                            position: 'absolute',
+                            top: 505, left: 316,
+                            width: 36, height: 30,
+                            pointerEvents: 'none',
+                            zIndex: 10,
+                        }}>
+                            {/* 左縦棒 */}
+                            <div style={{
+                                position: 'absolute', left: 0, top: 0,
+                                width: 4, height: 30,
+                                background: '#ff6600',
+                                boxShadow: '0 0 6px #ff6600',
+                                borderRadius: 2,
+                            }} />
+                            {/* 右縦棒 */}
+                            <div style={{
+                                position: 'absolute', right: 0, top: 0,
+                                width: 4, height: 30,
+                                background: '#ff6600',
+                                boxShadow: '0 0 6px #ff6600',
+                                borderRadius: 2,
+                            }} />
+                        </div>
+                    )}
+
                     {/* へそUI（縦棒2本） */}
                     <div style={{
                         position: 'absolute',
@@ -610,6 +648,7 @@ useEffect(() => {
                 </div>
             )}
             <RushMode
+                ref={rushModeRef}
                 isOpen={isRushOpen}
                 maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
                 moviePaths={rushMovies}

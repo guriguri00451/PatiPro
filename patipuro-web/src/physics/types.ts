@@ -14,6 +14,11 @@ export const PHYSICS_CONFIG = {
     HESO_X: 200,
     HESO_Y: 500,
     HESO_RADIUS: 15,
+    // 右打ちへそ（ラッシュ中の排出口）の設定
+    RUSH_HESO_X: 334,
+    RUSH_HESO_Y: 520,
+    RUSH_HESO_RADIUS: 14,
+    RUSH_HESO_SPIN_BONUS: 5,
 } as const;
 
 /**
