@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
+import oseImage from '../assets/ose.jpg';
 
 // ---- 確率定数（後で微調整可能） ----
 const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
@@ -55,9 +57,22 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   // 同じsrcが連続で選ばれた場合でも <video> を再マウントするためのカウンタ
   const [spinKey, setSpinKey]               = useState(0);
   // 演出のみ単独再生（ラッシュモード外でも動く）
-  const [videoOverride, setVideoOverride]   = useState<{ entry: MovieEntry; key: number; kind: 'reach' | 'success' } | null>(null);
+  const [videoOverride, setVideoOverride]   = useState<{ entry: MovieEntry; key: number; kind: 'reach' | 'success'; waiting: boolean } | null>(null);
+  // 演出開始前クリック待ちフラグ
+  const [waitingForClick, setWaitingForClick] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // autoplayポリシー対策: 親コンポーネントのクリックでアンロックされたら audio を warm-up
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    onUnlock(() => {
+      audio.muted = true;
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      audio.play().then(() => { audio.pause(); audio.muted = false; }).catch(() => { audio.muted = false; });
+    });
+  }, []);
 
   // Refで最新値を保持（コールバック内で古いクロージャを参照しないため）
   const spinResultRef       = useRef<SpinResult>('failure');
@@ -82,12 +97,12 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     playReach: () => {
       const entry = pickRandom(moviePathsRef.current.reach);
       if (!entry) return;
-      setVideoOverride({ entry, key: Date.now(), kind: 'reach' });
+      setVideoOverride({ entry, key: Date.now(), kind: 'reach', waiting: true });
     },
     playSuccess: () => {
       const entry = pickRandom(moviePathsRef.current.success);
       if (!entry) return;
-      setVideoOverride({ entry, key: Date.now(), kind: 'success' });
+      setVideoOverride({ entry, key: Date.now(), kind: 'success', waiting: true });
     },
   }));
 
@@ -127,6 +142,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
 
     setCurrentEntry(entry);
     setSpinKey(k => k + 1);
+    setWaitingForClick(true);
   }, [stopAudio]);
 
   // isOpen が true になったらリセット＆最初のスピン開始
@@ -141,15 +157,26 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     startSpin();
   }, [isOpen, startSpin, stopAudio]);
 
-  // 動画再生開始時に音声を同期再生
+  // 演出開始前クリックオーバーレイ（メインスピン用）
+  const handleOverlayClick = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && currentEntry?.audio) {
+      audio.src = currentEntry.audio;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    }
+    triggerUnlock();
+    setWaitingForClick(false);
+  }, [currentEntry]);
+
+  // 動画再生開始時に音声を同期再生（オーバーレイで未再生だった場合のフォールバック）
   const handleVideoPlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !currentEntry?.audio) return;
+    if (!audio.paused) return; // オーバーレイクリックですでに再生中
     audio.src = currentEntry.audio;
     audio.currentTime = 0;
-    audio.play().catch(() => {
-      // autoplay が拒否された場合は無視
-    });
+    audio.play().catch(() => {});
   }, [currentEntry]);
 
   // 動画終了時の評価ロジック
@@ -181,52 +208,81 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
       ? 'rgba(255,220,0,0.7)'
       : 'rgba(255,100,0,0.6)';
     return (
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 100,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-        }}
-      >
+      <>
         <audio ref={audioRef} />
         <div
           style={{
             position: 'relative',
-            width: '75%',
-            maxWidth: 280,
+            width: 330,
             aspectRatio: '16 / 9',
             background: '#000',
             borderRadius: 8,
             overflow: 'hidden',
             boxShadow: `0 0 20px ${glowColor}`,
-            pointerEvents: 'auto',
+            pointerEvents: 'none',
           }}
         >
-          <video
-            key={videoOverride.key}
-            src={videoOverride.entry.video}
-            autoPlay
-            muted
-            playsInline
-            onPlay={() => {
-              const audio = audioRef.current;
-              if (!audio || !videoOverride.entry.audio) return;
-              audio.src = videoOverride.entry.audio;
-              audio.currentTime = 0;
-              audio.play().catch(() => {});
-            }}
-            onEnded={() => {
-              stopAudio();
-              setVideoOverride(null);
-            }}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
+          {videoOverride.waiting ? (
+            <div
+              onClick={() => {
+                const audio = audioRef.current;
+                if (audio && videoOverride.entry.audio) {
+                  audio.src = videoOverride.entry.audio;
+                  audio.currentTime = 0;
+                  audio.play().catch(() => {});
+                }
+                triggerUnlock();
+                setVideoOverride(prev => prev ? { ...prev, waiting: false } : null);
+              }}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                background: 'rgba(0, 0, 0, 0.82)',
+                color: '#fff',
+                gap: 10,
+                pointerEvents: 'auto',
+                userSelect: 'none',
+              }}
+            >
+              <img 
+                src={oseImage} 
+                alt="タップして演出開始" 
+                style={{ 
+                  width: '230px', // 画像のサイズはお好みで調整してください
+                  height: 'auto',
+                  pointerEvents: 'none' // 画像自体がクリックイベントを邪魔しないようにする
+                }} 
+              />
+            </div>
+          ) : (
+            <video
+              key={videoOverride.key}
+              src={videoOverride.entry.video}
+              autoPlay
+              muted
+              playsInline
+              onPlay={() => {
+                const audio = audioRef.current;
+                if (!audio || !videoOverride.entry.audio) return;
+                if (!audio.paused) return;
+                audio.src = videoOverride.entry.audio;
+                audio.currentTime = 0;
+                audio.play().catch(() => {});
+              }}
+              onEnded={() => {
+                stopAudio();
+                setVideoOverride(null);
+              }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }}
+            />
+          )}
         </div>
-      </div>
+      </>
     );
   }
 
@@ -239,49 +295,69 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
                             '#ffffff';
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'none',
-      }}
-    >
+    <>
       {/* 音声要素（非表示） */}
       <audio ref={audioRef} />
 
-      {/* 動画エリア（盤面中央に小さく表示） */}
+      {/* 動画エリア */}
       <div
         style={{
           position: 'relative',
-          width: '75%',
-          maxWidth: 280,
+          width: 330,
           aspectRatio: '16 / 9',
           background: '#000',
           borderRadius: 8,
           overflow: 'hidden',
           boxShadow: '0 0 20px rgba(0,0,0,0.8)',
-          pointerEvents: 'auto',
+          pointerEvents: 'none',
         }}
       >
         {currentEntry && (
-          <video
-            key={spinKey}
-            src={currentEntry.video}
-            autoPlay
-            muted
-            playsInline
-            onPlay={handleVideoPlay}
-            onEnded={handleVideoEnded}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
+          waitingForClick ? (
+            <div
+              onClick={handleOverlayClick}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                background: 'rgba(0, 0, 0, 0.82)',
+                color: '#fff',
+                gap: 10,
+                pointerEvents: 'auto',
+                userSelect: 'none',
+              }}
+            >
+              <img 
+                src={oseImage} 
+                alt="タップして演出開始" 
+                style={{ 
+                  width: '230px', // 画像のサイズはお好みで調整してください
+                  height: 'auto',
+                  pointerEvents: 'none' // 画像自体がクリックイベントを邪魔しないようにする
+                }} 
+              />
+            </div>
+          ) : (
+            <video
+              key={spinKey}
+              src={currentEntry.video}
+              autoPlay
+              muted
+              playsInline
+              onPlay={handleVideoPlay}
+              onEnded={handleVideoEnded}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                pointerEvents: 'none',
+              }}
+            />
+          )
         )}
 
         {/* 残り回数カウンター（動画右下） */}
@@ -363,6 +439,6 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
         </div>
       </div>
       </div>
-    </div>
+    </>
   );
 });
