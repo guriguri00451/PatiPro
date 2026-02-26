@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
+import oseImage from '../assets/ose.jpg';
 
 // ---- 確率定数（後で微調整可能） ----
 const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
@@ -248,8 +249,15 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
                 userSelect: 'none',
               }}
             >
-              <div style={{ fontSize: 32 }}>▶</div>
-              <div style={{ fontSize: 13, letterSpacing: 2 }}>タップして演出開始</div>
+              <img 
+                src={oseImage} 
+                alt="タップして演出開始" 
+                style={{ 
+                  width: '230px', // 画像のサイズはお好みで調整してください
+                  height: 'auto',
+                  pointerEvents: 'none' // 画像自体がクリックイベントを邪魔しないようにする
+                }} 
+              />
             </div>
           ) : (
             <video
@@ -323,8 +331,15 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
                 userSelect: 'none',
               }}
             >
-              <div style={{ fontSize: 32 }}>▶</div>
-              <div style={{ fontSize: 13, letterSpacing: 2 }}>タップして演出開始</div>
+              <img 
+                src={oseImage} 
+                alt="タップして演出開始" 
+                style={{ 
+                  width: '230px', // 画像のサイズはお好みで調整してください
+                  height: 'auto',
+                  pointerEvents: 'none' // 画像自体がクリックイベントを邪魔しないようにする
+                }} 
+              />
             </div>
           ) : (
             <video

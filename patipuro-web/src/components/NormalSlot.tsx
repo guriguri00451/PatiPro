@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { MovieEntry, MoviePaths } from './RushMode';
 import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
+import oseImage from '../assets/ose.jpg';
 
 // ---- 確率定数 ----
 // スロットマシン（9択×3リール）と同じ確率を再現:
@@ -159,8 +160,15 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
             userSelect: 'none',
           }}
         >
-          <div style={{ fontSize: 32 }}>▶</div>
-          <div style={{ fontSize: 13, letterSpacing: 2 }}>タップして演出開始</div>
+          <img 
+            src={oseImage} 
+            alt="タップして演出開始" 
+            style={{ 
+              width: '230px', // 画像のサイズはお好みで調整してください
+              height: 'auto',
+              pointerEvents: 'none' // 画像自体がクリックイベントを邪魔しないようにする
+            }} 
+          />
         </div>
       ) : (
         <video
