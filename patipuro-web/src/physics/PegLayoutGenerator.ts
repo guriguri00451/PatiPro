@@ -27,11 +27,6 @@ export class PegLayoutGenerator {
         // =========================================================
         // 外側の縦壁
         bodies.push(this.createWall(Bodies, 45, 250, 180, 8, Math.PI / 2));
-        // 内側の縦壁（液晶の左端に沿う）
-        bodies.push(this.createWall(Bodies, 85, 260, 200, 8, Math.PI / 2));
-        // 左上から縦ルートへの誘導壁（右打ち上昇路を塞ぐため削除）
-        bodies.push(this.createWall(Bodies, 65, 150, 60, 8, Math.PI / 4));
-
         // =========================================================
         // 3. 左下：風車と、ヘソへ向かう斜めレール
         // =========================================================
@@ -51,7 +46,7 @@ export class PegLayoutGenerator {
         // 4. 右側の縦ルートと、ヘソへ向かう斜めレール
         // =========================================================
         // 液晶の右側に沿う縦壁
-        bodies.push(this.createWall(Bodies, 315, 260, 200, 8, Math.PI / 2));
+        bodies.push(this.createWall(Bodies, 315, 200, 200, 8, Math.PI / 2));
         // 液晶の下を通ってヘソに向かう右側のレール
         bodies.push(this.createGuidanceRail(Bodies, 280, 420, 140, 8, -0.35));
 
@@ -89,8 +84,11 @@ export class PegLayoutGenerator {
         // 天井ドーム（棒セグメントの連結）
         bodies.push(this.createWallSegment(Bodies, 25, 600, 25, 200));
         // 天井ドーム（棒セグメントの連結）
-        const dome = this.createCurvedRail(Bodies, 5, 150, -65, 15, 40, 4);
+        const dome = this.createCurvedRail(Bodies, 5, 150, -65, 15, 35, 4);
         bodies.push(...dome);
+        // さぶ天井ドーム（棒セグメントの連結）
+        const subDome = this.createCurvedRail(Bodies, 5, 200, -85, 15, 10, 4);
+        bodies.push(...subDome);
         // 逆流弁
         const ben = this.createCurvedRail(Bodies, 220, 190, 100, 180, 40, 10);
         //bodies.push(...ben);
@@ -103,8 +101,12 @@ export class PegLayoutGenerator {
         // ① 上部内側カーブ壁（右打ちルートの天井ガイド）
         // π*0.70 始まりにして左上の入口を広く取る
         // 天井ドーム（棒セグメントの連結）
-        const underDome = this.createCurvedRail(Bodies, 5, 190, -65, 15, 40, 4);
+        const underDome = this.createCurvedRail(Bodies, 70, 130, -55, 15, 20, 5);
         bodies.push(...underDome);
+
+        // さぶ天井ドーム（棒セグメントの連結）
+        const subUnderDome = this.createCurvedRail(Bodies, 25, 200, -90, 15, 6, 6);
+        bodies.push(...subUnderDome);
         // ② 右側チャンネル内壁（縦棒）
         bodies.push(this.createWallSegment(Bodies, 365, 190, 365, 440));
         // ③ 右打ちルート排出斜め壁（チャンネル下端からメインフィールドへ合流）
