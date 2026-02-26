@@ -266,6 +266,11 @@ const Pachinko: React.FC = () => {
                 shootBallRef.current();
             } else if (msg.type === 'reach') {
                 rushModeRef.current?.playReach();
+            } else if (msg.type === 'play_success') {
+                rushModeRef.current?.playSuccess();
+            } else if (msg.type === 'rush') {
+                setIsRushOpen(true);
+                physicsEngineRef.current.setRushMode(true);
             } else if (msg.type === 'burst' && typeof msg.count === 'number') {
                 const count = Math.min(Math.max(1, msg.count), 50);
                 for (let i = 0; i < count; i++) {
