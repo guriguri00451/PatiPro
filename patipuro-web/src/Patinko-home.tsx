@@ -8,7 +8,7 @@ import { BgmPlayer } from './components/BgmPlayer';
 const { BOARD_WIDTH, BOARD_HEIGHT, LAUNCH_POWER_MAX } = PHYSICS_CONFIG;
 
 const WS_URL = 'ws://localhost:8080';
-const RUSH_MAX_SPINS = 10;
+const RUSH_MAX_SPINS = 5;
 
 const Pachinko: React.FC = () => {
     // TypeScriptの型指定: HTMLDivElement | null
@@ -76,7 +76,6 @@ const Pachinko: React.FC = () => {
     // 右打ちへそコールバックを設定
     useEffect(() => {
         physicsEngineRef.current.setRushHesoCallback(() => {
-            rushModeRef.current?.addSpins(PHYSICS_CONFIG.RUSH_HESO_SPIN_BONUS);
             setWinCount(prev => prev + 1);
         });
     }, []);
@@ -268,6 +267,9 @@ const Pachinko: React.FC = () => {
                 rushModeRef.current?.playReach();
             } else if (msg.type === 'play_success') {
                 rushModeRef.current?.playSuccess();
+                for (let i = 0; i < 15; i++) {
+                    setTimeout(() => shootBallRef.current(), i * 80);
+                }
             } else if (msg.type === 'rush') {
                 setIsRushOpen(true);
                 physicsEngineRef.current.setRushMode(true);
@@ -680,8 +682,13 @@ useEffect(() => {
             <RushMode
                 ref={rushModeRef}
                 isOpen={isRushOpen}
-                maxSpins={RUSH_MAX_SPINS} // テストなので少なめに設定（100だと終わらないため）
+                maxSpins={RUSH_MAX_SPINS}
                 moviePaths={rushMovies}
+                onSuccess={() => {
+                    for (let i = 0; i < 15; i++) {
+                        setTimeout(() => shootBallRef.current(), i * 80);
+                    }
+                }}
                 onRushEnd={() => {
                     console.log("ラッシュ終了！");
                     setIsRushOpen(false);

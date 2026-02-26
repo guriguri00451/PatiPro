@@ -22,6 +22,7 @@ type Props = {
   isOpen: boolean;
   maxSpins: number;
   moviePaths: MoviePaths;
+  onSuccess?: () => void;
   onRushEnd: () => void;
 };
 
@@ -46,7 +47,7 @@ function pickRandom<T>(arr: T[]): T | null {
 
 // ---- コンポーネント ----
 export const RushMode = React.forwardRef<RushModeHandle, Props>((
-  { isOpen, maxSpins, moviePaths, onRushEnd },
+  { isOpen, maxSpins, moviePaths, onSuccess, onRushEnd },
   ref
 ) => {
   const [remainingSpins, setRemainingSpins] = useState(maxSpins);
@@ -63,10 +64,12 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   const remainingSpinsRef   = useRef(maxSpins);
   const maxSpinsRef         = useRef(maxSpins);
   const onRushEndRef        = useRef(onRushEnd);
+  const onSuccessRef        = useRef(onSuccess);
   const moviePathsRef       = useRef(moviePaths);
 
   // Props変化を即座にRefへ反映
   useEffect(() => { onRushEndRef.current  = onRushEnd;   }, [onRushEnd]);
+  useEffect(() => { onSuccessRef.current  = onSuccess;   }, [onSuccess]);
   useEffect(() => { maxSpinsRef.current   = maxSpins;    }, [maxSpins]);
   useEffect(() => { moviePathsRef.current = moviePaths;  }, [moviePaths]);
 
@@ -155,22 +158,20 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
 
     const result = spinResultRef.current;
 
+    // 当たり / ハズレ / リーチ → いずれも残り回数を1減らす
+    const next = remainingSpinsRef.current - 1;
+    remainingSpinsRef.current = next;
+    setRemainingSpins(next);
+
     if (result === 'success') {
-      // 当たり → 残り回数をMAXに復活して続行
-      remainingSpinsRef.current = maxSpinsRef.current;
-      setRemainingSpins(maxSpinsRef.current);
+      // 当たり → 弾を発射
+      onSuccessRef.current?.();
+    }
+
+    if (next > 0) {
       startSpin();
     } else {
-      // ハズレ / リーチ → 残り回数を1減らす
-      const next = remainingSpinsRef.current - 1;
-      remainingSpinsRef.current = next;
-      setRemainingSpins(next);
-
-      if (next > 0) {
-        startSpin();
-      } else {
-        onRushEndRef.current();
-      }
+      onRushEndRef.current();
     }
   }, [startSpin, stopAudio]);
 
