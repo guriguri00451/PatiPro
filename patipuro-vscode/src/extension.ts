@@ -209,8 +209,13 @@ async function runPatiTask(commandKey: 'buildCommand' | 'lintCommand' | 'testCom
         disposable.dispose();
 
         if (e.exitCode === 0) {
-            postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
-            vscode.window.showInformationMessage(`🎰 ${label}成功！パチンコ大放出！`);
+            if (commandKey === 'buildCommand') {
+                postMessageToAll({ type: 'rush' });
+                vscode.window.showInformationMessage(`🎰 ${label}成功！ラッシュ突入！`);
+            } else {
+                postMessageToAll({ type: 'play_success' });
+                vscode.window.showInformationMessage(`✅ ${label}成功！`);
+            }
         } else {
             postMessageToAll({ type: 'reach' });
             vscode.window.showWarningMessage(`❌ ${label}失敗... リーチ！`);
@@ -261,14 +266,14 @@ export function activate(context: vscode.ExtensionContext) {
 
             if (e.exitCode === 0) {
                 if (isBuild) {
-                    postMessageToAll({ type: 'burst', count: 15, triggerRushIfPending: true });
-                    vscode.window.showInformationMessage('🎰 ビルド成功！パチンコ大放出！');
+                    postMessageToAll({ type: 'rush' });
+                    vscode.window.showInformationMessage('🎰 ビルド成功！ラッシュ突入！');
                 } else if (isLint) {
-                    postMessageToAll({ type: 'burst', count: 10, triggerRushIfPending: true });
-                    vscode.window.showInformationMessage('✅ Lint通過！パチンコ放出！');
+                    postMessageToAll({ type: 'play_success' });
+                    vscode.window.showInformationMessage('✅ Lint通過！');
                 } else if (isTest) {
-                    postMessageToAll({ type: 'burst', count: 20, triggerRushIfPending: true });
-                    vscode.window.showInformationMessage('🎯 テスト全通過！パチンコ大当たり！');
+                    postMessageToAll({ type: 'play_success' });
+                    vscode.window.showInformationMessage('🎯 テスト全通過！');
                 }
             } else {
                 postMessageToAll({ type: 'reach' });

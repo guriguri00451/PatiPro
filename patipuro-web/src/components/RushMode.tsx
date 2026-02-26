@@ -22,12 +22,14 @@ type Props = {
   isOpen: boolean;
   maxSpins: number;
   moviePaths: MoviePaths;
+  onSuccess?: () => void;
   onRushEnd: () => void;
 };
 
 export type RushModeHandle = {
   addSpins: (n: number) => void;
   playReach: () => void;
+  playSuccess: () => void;
 };
 
 // ---- ユーティリティ ----
@@ -45,15 +47,15 @@ function pickRandom<T>(arr: T[]): T | null {
 
 // ---- コンポーネント ----
 export const RushMode = React.forwardRef<RushModeHandle, Props>((
-  { isOpen, maxSpins, moviePaths, onRushEnd },
+  { isOpen, maxSpins, moviePaths, onSuccess, onRushEnd },
   ref
 ) => {
   const [remainingSpins, setRemainingSpins] = useState(maxSpins);
   const [currentEntry, setCurrentEntry]     = useState<MovieEntry | null>(null);
   // 同じsrcが連続で選ばれた場合でも <video> を再マウントするためのカウンタ
   const [spinKey, setSpinKey]               = useState(0);
-  // リーチ演出のみ単独再生（ラッシュモード外でも動く）
-  const [reachOverride, setReachOverride]   = useState<{ entry: MovieEntry; key: number } | null>(null);
+  // 演出のみ単独再生（ラッシュモード外でも動く）
+  const [videoOverride, setVideoOverride]   = useState<{ entry: MovieEntry; key: number; kind: 'reach' | 'success' } | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -62,10 +64,12 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   const remainingSpinsRef   = useRef(maxSpins);
   const maxSpinsRef         = useRef(maxSpins);
   const onRushEndRef        = useRef(onRushEnd);
+  const onSuccessRef        = useRef(onSuccess);
   const moviePathsRef       = useRef(moviePaths);
 
   // Props変化を即座にRefへ反映
   useEffect(() => { onRushEndRef.current  = onRushEnd;   }, [onRushEnd]);
+  useEffect(() => { onSuccessRef.current  = onSuccess;   }, [onSuccess]);
   useEffect(() => { maxSpinsRef.current   = maxSpins;    }, [maxSpins]);
   useEffect(() => { moviePathsRef.current = moviePaths;  }, [moviePaths]);
 
@@ -78,7 +82,12 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     playReach: () => {
       const entry = pickRandom(moviePathsRef.current.reach);
       if (!entry) return;
-      setReachOverride({ entry, key: Date.now() });
+      setVideoOverride({ entry, key: Date.now(), kind: 'reach' });
+    },
+    playSuccess: () => {
+      const entry = pickRandom(moviePathsRef.current.success);
+      if (!entry) return;
+      setVideoOverride({ entry, key: Date.now(), kind: 'success' });
     },
   }));
 
@@ -149,27 +158,28 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
 
     const result = spinResultRef.current;
 
+    // 当たり / ハズレ / リーチ → いずれも残り回数を1減らす
+    const next = remainingSpinsRef.current - 1;
+    remainingSpinsRef.current = next;
+    setRemainingSpins(next);
+
     if (result === 'success') {
-      // 当たり → 残り回数をMAXに復活して続行
-      remainingSpinsRef.current = maxSpinsRef.current;
-      setRemainingSpins(maxSpinsRef.current);
+      // 当たり → 弾を発射
+      onSuccessRef.current?.();
+    }
+
+    if (next > 0) {
       startSpin();
     } else {
-      // ハズレ / リーチ → 残り回数を1減らす
-      const next = remainingSpinsRef.current - 1;
-      remainingSpinsRef.current = next;
-      setRemainingSpins(next);
-
-      if (next > 0) {
-        startSpin();
-      } else {
-        onRushEndRef.current();
-      }
+      onRushEndRef.current();
     }
   }, [startSpin, stopAudio]);
 
-  // ラッシュモード外でのリーチ演出単独表示
-  if (!isOpen && reachOverride) {
+  // ラッシュモード外での演出単独表示（reach / success）
+  if (!isOpen && videoOverride) {
+    const glowColor = videoOverride.kind === 'success'
+      ? 'rgba(255,220,0,0.7)'
+      : 'rgba(255,100,0,0.6)';
     return (
       <div
         style={{
@@ -192,26 +202,26 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
             background: '#000',
             borderRadius: 8,
             overflow: 'hidden',
-            boxShadow: '0 0 20px rgba(255,100,0,0.6)',
+            boxShadow: `0 0 20px ${glowColor}`,
             pointerEvents: 'auto',
           }}
         >
           <video
-            key={reachOverride.key}
-            src={reachOverride.entry.video}
+            key={videoOverride.key}
+            src={videoOverride.entry.video}
             autoPlay
             muted
             playsInline
             onPlay={() => {
               const audio = audioRef.current;
-              if (!audio || !reachOverride.entry.audio) return;
-              audio.src = reachOverride.entry.audio;
+              if (!audio || !videoOverride.entry.audio) return;
+              audio.src = videoOverride.entry.audio;
               audio.currentTime = 0;
               audio.play().catch(() => {});
             }}
             onEnded={() => {
               stopAudio();
-              setReachOverride(null);
+              setVideoOverride(null);
             }}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
