@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
 import oseImage from '../assets/ose.jpg';
+import oseSound from '../assets/ose.mp3';
 
 // ---- 確率定数（後で微調整可能） ----
 const PROB_SUCCESS = 0.50; // 50% ラッシュ中の当たり確率（調整可能）
@@ -62,6 +63,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   const [waitingForClick, setWaitingForClick] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const oseAudioRef = useRef<HTMLAudioElement>(null);
 
   // autoplayポリシー対策: 親コンポーネントのクリックでアンロックされたら audio を warm-up
   useEffect(() => {
@@ -88,6 +90,28 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   useEffect(() => { maxSpinsRef.current   = maxSpins;    }, [maxSpins]);
   useEffect(() => { moviePathsRef.current = moviePaths;  }, [moviePaths]);
 
+  // 音声を停止してリセット
+  const stopAudio = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
+  const playOseSound = useCallback(() => {
+    const audio = oseAudioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }, []);
+
+  const stopOseSound = useCallback(() => {
+    const audio = oseAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
   useImperativeHandle(ref, () => ({
     addSpins: (n: number) => {
       const next = remainingSpinsRef.current + n;
@@ -105,14 +129,6 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
       setVideoOverride({ entry, key: Date.now(), kind: 'success', waiting: true });
     },
   }));
-
-  // 音声を停止してリセット
-  const stopAudio = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.pause();
-    audio.currentTime = 0;
-  }, []);
 
   // 1スピン開始
   const startSpin = useCallback(() => {
@@ -149,16 +165,32 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
   useEffect(() => {
     if (!isOpen) {
       stopAudio();
+      stopOseSound();
       setCurrentEntry(null);
       return;
     }
     remainingSpinsRef.current = maxSpinsRef.current;
     setRemainingSpins(maxSpinsRef.current);
     startSpin();
-  }, [isOpen, startSpin, stopAudio]);
+  }, [isOpen, startSpin, stopAudio, stopOseSound]);
+
+  // waitingForClick が true になった後（再レンダー後）に ose.mp3 を再生
+  useEffect(() => {
+    if (waitingForClick) {
+      playOseSound();
+    }
+  }, [waitingForClick, playOseSound]);
+
+  // videoOverride の waiting が true になった後（再レンダー後）に ose.mp3 を再生
+  useEffect(() => {
+    if (videoOverride?.waiting) {
+      playOseSound();
+    }
+  }, [videoOverride?.waiting, playOseSound]);
 
   // 演出開始前クリックオーバーレイ（メインスピン用）
   const handleOverlayClick = useCallback(() => {
+    stopOseSound();
     const audio = audioRef.current;
     if (audio && currentEntry?.audio) {
       audio.src = currentEntry.audio;
@@ -167,7 +199,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     }
     triggerUnlock();
     setWaitingForClick(false);
-  }, [currentEntry]);
+  }, [currentEntry, stopOseSound]);
 
   // 動画再生開始時に音声を同期再生（オーバーレイで未再生だった場合のフォールバック）
   const handleVideoPlay = useCallback(() => {
@@ -210,6 +242,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     return (
       <>
         <audio ref={audioRef} />
+        <audio ref={oseAudioRef} src={oseSound} loop />
         <div
           style={{
             position: 'relative',
@@ -225,6 +258,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
           {videoOverride.waiting ? (
             <div
               onClick={() => {
+                stopOseSound();
                 const audio = audioRef.current;
                 if (audio && videoOverride.entry.audio) {
                   audio.src = videoOverride.entry.audio;
@@ -298,6 +332,7 @@ export const RushMode = React.forwardRef<RushModeHandle, Props>((
     <>
       {/* 音声要素（非表示） */}
       <audio ref={audioRef} />
+      <audio ref={oseAudioRef} src={oseSound} loop />
 
       {/* 動画エリア */}
       <div

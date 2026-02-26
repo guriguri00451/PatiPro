@@ -21,3 +21,6 @@ yarn-error.log*
 # 環境変数
 .env
 .env.local
+
+# 100MB超の大容量ファイル（GitHub制限）
+sample-root/patipuro/patidais/A6.patidai

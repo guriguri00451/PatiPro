@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } 
 import { MovieEntry, MoviePaths } from './RushMode';
 import { onUnlock, triggerUnlock } from '../utils/audioUnlock';
 import oseImage from '../assets/ose.jpg';
+import oseSound from '../assets/ose.mp3';
 
 // ---- 確率定数 ----
 // スロットマシン（9択×3リール）と同じ確率を再現:
@@ -45,6 +46,7 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
   const [waitingForClick, setWaitingForClick] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
+  const oseAudioRef = useRef<HTMLAudioElement>(null);
   const spinResultRef = useRef<SpinResult>('failure');
   const moviePathsRef = useRef(moviePaths);
   const onResultRef = useRef(onResult);
@@ -65,6 +67,20 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
 
   const stopAudio = useCallback(() => {
     const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+  }, []);
+
+  const playOseSound = useCallback(() => {
+    const audio = oseAudioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }, []);
+
+  const stopOseSound = useCallback(() => {
+    const audio = oseAudioRef.current;
     if (!audio) return;
     audio.pause();
     audio.currentTime = 0;
@@ -98,8 +114,16 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
 
   useImperativeHandle(ref, () => ({ spin }));
 
+  // waitingForClick が true になった後（再レンダー後）に ose.mp3 を再生
+  useEffect(() => {
+    if (waitingForClick) {
+      playOseSound();
+    }
+  }, [waitingForClick, playOseSound]);
+
   // 演出開始前のクリックオーバーレイ: ユーザージェスチャー内で直接 audio.play() を呼ぶ
   const handleOverlayClick = useCallback(() => {
+    stopOseSound();
     const audio = audioRef.current;
     if (audio && currentEntry?.audio) {
       audio.src = currentEntry.audio;
@@ -108,7 +132,7 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
     }
     triggerUnlock();
     setWaitingForClick(false);
-  }, [currentEntry]);
+  }, [currentEntry, stopOseSound]);
 
   const handleVideoPlay = useCallback(() => {
     const audio = audioRef.current;
@@ -142,6 +166,7 @@ export const NormalSlot = React.forwardRef<NormalSlotHandle, Props>((
       }}
     >
       <audio ref={audioRef} />
+      <audio ref={oseAudioRef} src={oseSound} loop />
       {waitingForClick ? (
         <div
           onClick={handleOverlayClick}
