@@ -25,8 +25,8 @@ graph TD
 
     subgraph Docker["🐳 Docker Compose"]
         direction LR
-        DC_S["server コンテナ<br/>node:20 · port 8080"]
-        DC_W["web コンテナ<br/>node:20-slim · port 5173"]
+        DC_S["server コンテナ<br/>node:24 · port 8080"]
+        DC_W["web コンテナ<br/>node:24-slim · port 5173"]
     end
 
     subgraph ReactApp["⚛️ React Web App (patipuro-web)"]
