@@ -1,7 +1,7 @@
 services:
   # WebSocket中継サーバー
   server:
-    image: node:20
+    image: node:24
     working_dir: /app
     volumes:
       - ./patipuro-server:/app
