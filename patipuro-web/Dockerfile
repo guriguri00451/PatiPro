@@ -1,5 +1,5 @@
 # ベースイメージ
-FROM node:20-slim
+FROM node:24-slim
 
 # 作業ディレクトリの設定
 WORKDIR /app
